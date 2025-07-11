@@ -1,0 +1,12 @@
+[project]
+name = "asgi-server"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "fastapi>=0.116.0",
+    "httptools>=0.6.4",
+    "uvicorn[standard]>=0.35.0",
+    "uvloop>=0.21.0",
+]
