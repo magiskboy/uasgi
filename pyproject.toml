@@ -1,13 +1,20 @@
 [project]
 name = "uasgi"
-version = "0.1.0"
+version = "0.1.1b1"
 description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
-    "fastapi>=0.116.0",
     "h2>=4.2.0",
     "httptools>=0.6.4",
     "setuptools>=80.9.0",
     "uvloop>=0.21.0",
+]
+classifiers = [
+    "Programming Language :: Python :: 3",
+     "Programming Language :: Python :: 3.13",
+     "License :: OSI Approved :: MIT License",
+     "Operating System :: OS Independent",
+     "Topic :: Internet :: WWW/HTTP :: WSGI :: Server",
+     "Framework :: AsyncIO",
 ]

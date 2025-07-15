@@ -1,5 +1,7 @@
+import asyncio
 import os
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
+from fastapi.responses import StreamingResponse
 from uasgi import run, create_logger
 from contextlib import asynccontextmanager
 
@@ -20,15 +22,25 @@ def create_app():
     )
 
     @app.get('/')
-    async def index():
+    async def index(request: Request):
         return {
             "name": "Thanh",
             "age": 20,
-            "address": "Vietnam"
+            "address": "Vietnam",
+            "state.property": request.state.property,
         }
 
-    return app
+    @app.get('/stream')
+    async def stream():
 
+        async def gen():
+            for i in range(100):
+                await asyncio.sleep(1)
+                yield str(i).encode("utf-8")
+
+        return StreamingResponse(content=gen())
+
+    return app
 
 def main():
     enable_http2 = os.getenv('H2', 'false') == 'true'
@@ -41,11 +53,7 @@ def main():
         app_factory=create_app, 
         host='127.0.0.1',
         port=5001,
-        backlog=1024,
         workers=4,
-        ssl_key_file='./certificates/server.key',
-        ssl_cert_file='./certificates/server.crt',
-        enable_h2=enable_http2,
         log_level='DEBUG',
     )
 

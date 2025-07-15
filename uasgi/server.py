@@ -16,10 +16,11 @@ if TYPE_CHECKING:
 
 
 class ServerState:
-    def __init__(self):
+    def __init__(self, lifespan: "Lifespan"):
         self.connections: Set[asyncio.Protocol] = set()
         self.tasks: Set[asyncio.Task] = set()
         self.root_path = os.getcwd()
+        self.lifespan: "Lifespan" = lifespan
 
 
 class Server:
@@ -34,12 +35,12 @@ class Server:
         self.workers: List["Worker"] = []
         self.config = config
         self.app = self.app_factory()
-        self.state = ServerState()
         self.stop_event = stop_event
         self.server: asyncio.Server
         self.logger = logger
         self.access_logger = access_logger
         self.lifespan = Lifespan(self.app)
+        self.state = ServerState(self.lifespan)
 
     async def main(self, sock: socket.socket):
         self.logger.info(f"Worker {self.pid} is running...")

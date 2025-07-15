@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, List, Literal, Optional, Set, Tuple
+from typing import TYPE_CHECKING, Callable, List, Literal, Optional, Set, Tuple
 import asyncio
 import urllib.parse
 from collections import deque
@@ -23,6 +23,7 @@ class H1Connection(asyncio.Protocol):
         self.tasks: Set[asyncio.Task] = server_state.tasks
         self.connections: Set[asyncio.Protocol] = server_state.connections
         self.loop: asyncio.AbstractEventLoop = asyncio.get_running_loop()
+        self.lifespan = server_state.lifespan
         self.server_state = server_state
 
         # connection scope
@@ -80,7 +81,7 @@ class H1Connection(asyncio.Protocol):
             "headers": self.headers,
             "client": self.client,
             "server": self.server,
-            "state": None
+            "state": self.lifespan.app_state
         }
 
     def on_header(self, name: bytes, value: bytes):
@@ -103,11 +104,13 @@ class H1Connection(asyncio.Protocol):
             app=self.app,
             transport=self.transport,
             message_event=asyncio.Event(),
+            message_complete=False,
             on_response_complete=self.on_response_complete,
         )
 
         if self.current_runner:
             self.pipeline.appendleft(runner)
+
         else:
             self.current_runner = runner
             self.schedule_runner(runner)
@@ -129,6 +132,10 @@ class H1Connection(asyncio.Protocol):
         if self.current_runner:
             self.current_runner.set_body(body)
 
+    def on_message_complete(self):
+        if self.current_runner:
+            self.current_runner.message_complete = True
+
 
 class AppRunner:
     __slots__ = (
@@ -139,6 +146,8 @@ class AppRunner:
         'on_response_complete',
         'body',
         'task',
+        'more_body',
+        'message_complete',
     )
 
     def __init__(
@@ -147,7 +156,8 @@ class AppRunner:
         app: "ASGIHandler",
         transport: asyncio.Transport,
         message_event: asyncio.Event,
-        on_response_complete,
+        on_response_complete: Callable[...],
+        message_complete: bool,
     ) -> None:
         self.app = app
         self.transport = transport
@@ -156,6 +166,8 @@ class AppRunner:
         self.body = b""
         self.on_response_complete = on_response_complete
         self.task: asyncio.Task
+        self.more_body: bool = False
+        self.message_complete: bool = message_complete
 
     def set_body(self, body: bytes):
         self.body += body
@@ -174,8 +186,11 @@ class AppRunner:
             # end lifespan
         except asyncio.CancelledError:
             ...
+        except OSError:
+            ...
         finally:
-            self.on_response_complete()
+            if not self.more_body:
+                self.on_response_complete()
 
     async def receive(self):
         await self.message_event.wait()
@@ -183,6 +198,7 @@ class AppRunner:
         event = {
             "type": "http.request",
             "body": body,
+            "more_body": not self.message_complete
         }
         return event
 
@@ -199,6 +215,9 @@ class AppRunner:
 
         elif _type == 'http.response.body':
             body = event.get("body")
+            more_body = event.get("more_body", False)
+            self.more_body = more_body
+
             if body:
                 self.transport.write(body)
 
