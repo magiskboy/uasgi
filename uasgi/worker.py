@@ -46,3 +46,5 @@ class Worker:
     def pid(self):
         return os.getpid()
 
+    def alive(self):
+        ...

@@ -12,22 +12,16 @@ Inspired by the need for a simple yet powerful ASGI server, uASGI aims to provid
 *   **SSL/TLS**: Secure communication with built-in SSL context creation.
 *   **Multiprocessing Workers**: Scale your application across multiple CPU cores with a configurable worker pool.
 *   **Asynchronous I/O**: Built on `asyncio` and optimized with `uvloop` for high concurrency.
-*   **Logging**: Configurable logging for server operations and access logs.
 
 ## Installation
 
 uASGI requires Python 3.13 or later.
 
-You can install uASGI and its dependencies using `pip`:
+You can install uASGI and its dependencies using `pip` or `uv`
 
 ```bash
 pip install uasgi
-```
-
-Alternatively, if you have `uv` installed (as indicated by `uv.lock`), you can install dependencies from the lock file:
-
-```bash
-uv sync
+uv add uasgi
 ```
 
 ## Usage
@@ -63,31 +57,15 @@ def create_app():
     @app.get('/')
     async def index():
         return {
-            "name": "Thanh",
-            "age": 20,
-            "address": "Vietnam"
+            "Hello": "World"
         }
 
     return app
 
 
 def main():
-    enable_http2 = os.getenv('H2', 'false') == 'true'
-    if enable_http2:
-        print('Server is running with HTTP/2')
-    else:
-        print('Server is running with HTTP/1.1')
-
     run(
         app_factory=create_app, 
-        host='127.0.0.1',
-        port=5001,
-        backlog=1024,
-        workers=4,
-        ssl_key_file='./certificates/server.key',
-        ssl_cert_file='./certificates/server.crt',
-        enable_h2=enable_http2,
-        log_level='DEBUG',
     )
 
 
@@ -101,7 +79,7 @@ Then, run it from your terminal:
 python example.py
 ```
 
-This will start the server on `http://127.0.0.1:5001` with HTTP/1.1.
+This will start the server on `http://127.0.0.1:5000` with HTTP/1.1.
 
 ### Configuration Options
 
@@ -117,24 +95,6 @@ The `run` function accepts several parameters to configure the server:
 *   `enable_h2` (bool): Enable HTTP/2 protocol (default: `False`). Requires SSL.
 *   `log_level` (str): Set the logging level (`'DEBUG'`, `'INFO'`, `'WARNING'`, `'ERROR'`).
 
-### Running with HTTP/2 and SSL
-
-To enable HTTP/2, you must provide SSL certificate and key files. You can generate self-signed certificates for testing purposes.
-
-1.  **Generate Certificates (for testing)**:
-    ```bash
-    mkdir -p certificates
-    openssl req -x509 -newkey rsa:4096 -nodes -out certificates/server.crt -keyout certificates/server.key -days 365 -subj "/CN=localhost"
-    ```
-
-2.  **Run the server with HTTP/2 and SSL**:
-    Set the `H2` environment variable to `true` and ensure `ssl_cert_file` and `ssl_key_file` are provided in your `run` call.
-
-    ```bash
-    H2=true python example.py
-    ```
-    Access your application via `https://127.0.0.1:5001`.
-
 ## Development
 
 To set up the development environment:
@@ -146,7 +106,7 @@ To set up the development environment:
     ```
 2.  **Install dependencies**:
     ```bash
-uv sync # or pip install -e .
+    uv sync # or pip install -e .
     ```
 
 ## Contributing

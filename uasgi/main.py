@@ -88,3 +88,6 @@ def run(
         while running:
             time.sleep(1)
 
+
+def _monitor(workers: List[Worker]):
+    ...
