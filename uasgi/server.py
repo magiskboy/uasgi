@@ -78,10 +78,12 @@ class Server:
         return H1Connection(self.app, self.state)
 
     async def startup(self):
-        await self.lifespan.startup()
+        if self.config.lifespan:
+            await self.lifespan.startup()
 
     async def shutdown(self):
-        await self.lifespan.shutdown()
+        if self.config.lifespan:
+            await self.lifespan.shutdown()
     
     @property
     def pid(self):

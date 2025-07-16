@@ -1,7 +1,7 @@
 import asyncio
 import os
 from fastapi import FastAPI, Request
-from fastapi.responses import StreamingResponse
+from fastapi.responses import FileResponse, StreamingResponse
 from uasgi import run, create_logger
 from contextlib import asynccontextmanager
 
@@ -17,6 +17,23 @@ async def lifespan(_):
 
 
 def create_app():
+    async def app(scope, receive, send):
+        if scope['type'] == 'http':
+            fd = os.open('/Users/nkthanh/Downloads/512KB-min.json', os.O_RDONLY | os.O_NONBLOCK, 0o777)
+            fsize = os.fstat(fd).st_size
+            await send({
+                'type': 'http.response.start',
+                'status': 200,
+                'headers': [(b'Content-Length', str(fsize).encode('ascii'))]
+            })
+
+            await send({
+                'type': 'http.response.zerocopysend',
+                'file': fd,
+                'count': 128,
+            })
+
+    return app
     app = FastAPI(
         lifespan=lifespan,
     )
@@ -40,6 +57,10 @@ def create_app():
 
         return StreamingResponse(content=gen())
 
+    @app.get('/files')
+    async def file():
+        return FileResponse('/Users/nkthanh/Downloads/512KB-min.json')
+
     return app
 
 def main():
@@ -55,6 +76,8 @@ def main():
         port=5001,
         workers=4,
         log_level='DEBUG',
+        # ssl_cert_file='/tmp/certificates/server.crt',
+        # ssl_key_file='/tmp/certificates/server.key',
     )
 
 

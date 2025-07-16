@@ -1,9 +1,11 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Callable, List, Literal, Optional, Set, Tuple
+import os
 import asyncio
+import socket
 import urllib.parse
 from collections import deque
+from typing import TYPE_CHECKING, Callable, List, Literal, Optional, Set, Tuple
 
 import httptools
 
@@ -14,6 +16,13 @@ from .http import build_http_response_header
 if TYPE_CHECKING:
     from .server import ServerState
     from .types import ASGIHandler
+
+
+NO_BODY_METHOD = {
+    "GET",
+    "OPTIONS",
+    "HEAD",
+}
 
 
 class H1Connection(asyncio.Protocol):
@@ -33,6 +42,7 @@ class H1Connection(asyncio.Protocol):
         self.server: Tuple[str, int]
         self.transport: asyncio.Transport
         self.pipeline: deque["AppRunner"] = deque()
+        self.ready_write: asyncio.Event
 
         # request state
         self.url: bytes
@@ -46,10 +56,18 @@ class H1Connection(asyncio.Protocol):
         self.server = transport.get_extra_info('socket').getsockname()
         self.client = transport.get_extra_info('peername')
         self.ssl = transport.get_extra_info("sslcontext")
+        self.ready_write = asyncio.Event()
+        self.ready_write.set()
         if self.ssl:
             self.scheme = "https"
         else:
             self.scheme = "http"
+
+    def pause_writing(self) -> None:
+        self.ready_write.clear()
+
+    def resume_writing(self) -> None:
+        self.ready_write.set()
 
     def connection_lost(self, exc: Exception | None) -> None:
         self.connections.discard(self)
@@ -104,8 +122,9 @@ class H1Connection(asyncio.Protocol):
             app=self.app,
             transport=self.transport,
             message_event=asyncio.Event(),
-            message_complete=False,
+            message_complete=self.scope['method'] in NO_BODY_METHOD,
             on_response_complete=self.on_response_complete,
+            ready_write=self.ready_write,
         )
 
         if self.current_runner:
@@ -148,6 +167,7 @@ class AppRunner:
         'task',
         'more_body',
         'message_complete',
+        'ready_write',
     )
 
     def __init__(
@@ -158,6 +178,7 @@ class AppRunner:
         message_event: asyncio.Event,
         on_response_complete: Callable[...],
         message_complete: bool,
+        ready_write: asyncio.Event,
     ) -> None:
         self.app = app
         self.transport = transport
@@ -168,6 +189,7 @@ class AppRunner:
         self.task: asyncio.Task
         self.more_body: bool = False
         self.message_complete: bool = message_complete
+        self.ready_write = ready_write
 
     def set_body(self, body: bytes):
         self.body += body
@@ -193,6 +215,14 @@ class AppRunner:
                 self.on_response_complete()
 
     async def receive(self):
+        if self.scope['method'] in [b'GET']:
+            event = {
+                "type": "http.request",
+                "body": None,
+                "more_body": not self.message_complete
+            }
+            return event
+
         await self.message_event.wait()
         body = self.drain_body()
         event = {
@@ -220,4 +250,39 @@ class AppRunner:
 
             if body:
                 self.transport.write(body)
+
+        elif _type == 'http.response.zerocopysend':
+            file = event['file']
+            count = event.get('count')
+            asyncio.create_task(self.send_file(file, count))
+            self.more_body = False
+
+    async def send_file(
+        self,
+        fd: int,
+        count: Optional[int] = None,
+    ):
+        count = count or 128
+
+        offset = 0
+        fsize = os.fstat(fd).st_size
+
+        s: socket.socket = self.transport.get_extra_info('socket')
+        fd_out = s.fileno()
+
+        while offset < fsize:
+            remaining_bytes = fsize - offset
+            count_to_send = min(count, remaining_bytes)
+
+            if count_to_send == 0:
+                break
+
+            self.transport.pause_reading()
+            await self.ready_write.wait()
+            bytes_to_sent = os.sendfile(fd_out, fd, offset, count_to_send)
+            self.transport.resume_reading()
+            if bytes_to_sent == 0:
+                raise RuntimeError('Connection have been closed')
+
+            offset += count_to_send
 
