@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import os
+import time
 import asyncio
+import threading
 import multiprocessing as mp
 
 import uvloop
@@ -19,6 +21,7 @@ class Worker:
         self.stop_event = asyncio.Event()
         self.logger = create_logger('asgi.internal', config.log_level)
         self.access_logger = create_logger('asgi.access', 'INFO')
+        (self._receiver, self._sender) = mp.Pipe(duplex=False)
 
     def run(self):
         self.worker = mp.Process(target=self.serve)
@@ -36,6 +39,10 @@ class Worker:
             logger=self.logger,
             access_logger=self.access_logger,
         )
+
+        alive_t = threading.Thread(target=self.alive, args=(server,))
+        alive_t.start()
+
         asyncio.run(server.main(self.config.socket))
 
     def stop(self):
@@ -46,5 +53,15 @@ class Worker:
     def pid(self):
         return os.getpid()
 
-    def alive(self):
-        ...
+    def alive(self, server: Server):
+        while True:
+            self._sender.send({
+                'num_connections': len(server.state.connections),
+                'num_tasks': len(server.state.tasks),
+            })
+            time.sleep(1)
+
+    @property
+    def receiver(self):
+        return self._receiver
+

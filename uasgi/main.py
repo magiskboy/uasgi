@@ -2,15 +2,14 @@ from __future__ import annotations
 
 import asyncio
 import signal
-import time
-from typing import List, Optional
+from typing import Optional
 
 import uvloop
 
 from .server import Server
 from .types import LOG_LEVEL, Config
-from .worker import Worker
 from .utils import create_logger
+from .arbiter import Arbiter
 
 
 STOP_SIGNALS = [signal.SIGINT, signal.SIGHUP, signal.SIGTERM]
@@ -65,29 +64,10 @@ def run(
 
     else:
 
-        logger = create_logger('asgi.internal', config.log_level)
+        arbiter = Arbiter(
+            app_factory=app_factory,
+            config=config,
+            logger=create_logger('asgi.internal', config.log_level),
+        )
+        arbiter.start()
 
-        _workers: List[Worker] = []
-        for _ in range(config.workers):
-            worker = Worker(app_factory, config)
-            worker.run()
-            _workers.append(worker)
-
-        running = True
-
-        def shutdown(*_):
-            nonlocal running
-
-            for worker in _workers:
-                worker.stop()
-
-            running = False
-
-        on_stop_signals(shutdown)
-        
-        while running:
-            time.sleep(1)
-
-
-def _monitor(workers: List[Worker]):
-    ...
