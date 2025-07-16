@@ -30,7 +30,7 @@ def create_app():
             await send({
                 'type': 'http.response.zerocopysend',
                 'file': fd,
-                'count': 128,
+                'count': 512,
             })
 
     return app

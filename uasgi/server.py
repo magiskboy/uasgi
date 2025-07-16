@@ -4,7 +4,7 @@ import os
 import socket
 import logging
 import asyncio
-from typing import Callable, List, Optional, Set, TYPE_CHECKING
+from typing import Callable, List, Set, TYPE_CHECKING
 
 from .h1_impl import H1Connection
 from .h2_impl import H2Connection
@@ -27,7 +27,7 @@ class Server:
     def __init__(self,
         app_factory: Callable[..., ASGIHandler],
         config: Config,
-        stop_event: Optional[asyncio.Event],
+        stop_event: asyncio.Event,
         logger: logging.Logger,
         access_logger: logging.Logger,
     ):
@@ -51,23 +51,21 @@ class Server:
             protocol_factory=self.create_protocol,
             sock=sock,
             ssl=self.config.get_ssl(),
+            start_serving=False,
         )
 
         await self.startup()
 
-        if self.stop_event:
-            stop_event_task = asyncio.create_task(self.stop_event.wait())
-            server_listen_task = asyncio.create_task(self.server.serve_forever())
-            gather = asyncio.wait(
-                fs=[stop_event_task, server_listen_task],
-                return_when=asyncio.FIRST_COMPLETED,
-            )
-            try:
-                await gather
-            except asyncio.CancelledError:
-                ...
-        else:
-            await self.server.serve_forever()
+        stop_event_task = asyncio.create_task(self.stop_event.wait())
+        server_listen_task = asyncio.create_task(self.server.serve_forever())
+        gather = asyncio.wait(
+            fs=[stop_event_task, server_listen_task],
+            return_when=asyncio.FIRST_COMPLETED,
+        )
+        try:
+            await gather
+        except asyncio.CancelledError:
+            ...
 
         await self.shutdown()
 

@@ -4,6 +4,7 @@ import os
 import asyncio
 import socket
 import urllib.parse
+import errno
 from collections import deque
 from typing import TYPE_CHECKING, Callable, List, Literal, Optional, Set, Tuple
 
@@ -254,15 +255,15 @@ class AppRunner:
         elif _type == 'http.response.zerocopysend':
             file = event['file']
             count = event.get('count')
-            asyncio.create_task(self.send_file(file, count))
+            asyncio.create_task(self.sendfile(file, count))
             self.more_body = False
 
-    async def send_file(
+    async def sendfile(
         self,
         fd: int,
         count: Optional[int] = None,
     ):
-        count = count or 128
+        count = count or 512
 
         offset = 0
         fsize = os.fstat(fd).st_size
@@ -277,12 +278,16 @@ class AppRunner:
             if count_to_send == 0:
                 break
 
-            self.transport.pause_reading()
             await self.ready_write.wait()
-            bytes_to_sent = os.sendfile(fd_out, fd, offset, count_to_send)
-            self.transport.resume_reading()
-            if bytes_to_sent == 0:
-                raise RuntimeError('Connection have been closed')
+            try:
+                bytes_to_sent = os.sendfile(fd_out, fd, offset, count_to_send)
 
-            offset += count_to_send
+                if bytes_to_sent == 0:
+                    raise RuntimeError('Connection have been closed')
+            except BlockingIOError as e:
+                if e.errno != errno.EAGAIN:
+                    raise
+                await asyncio.sleep(0)
 
+            else:
+                offset += count_to_send
