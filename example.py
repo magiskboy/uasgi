@@ -1,7 +1,7 @@
 import asyncio
 import os
-from fastapi import FastAPI, Request
-from fastapi.responses import FileResponse, StreamingResponse
+from fastapi import FastAPI
+from fastapi.responses import StreamingResponse
 from uasgi import run, create_logger
 from contextlib import asynccontextmanager
 
@@ -57,11 +57,6 @@ def create_app():
 
         return StreamingResponse(content=gen())
 
-    @app.get('/files')
-    async def file():
-        return FileResponse('/Users/nkthanh/Downloads/512KB-min.json')
-
-    return app
 
 def main():
     enable_http2 = os.getenv('H2', 'false') == 'true'
