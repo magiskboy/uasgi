@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING, List
 from .worker import Worker
 
 if TYPE_CHECKING:
-    from .types import Config
+    from .config import Config
 
 
 class Arbiter:

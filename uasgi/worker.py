@@ -4,16 +4,19 @@ import time
 import asyncio
 import threading
 import multiprocessing as mp
+from typing import TYPE_CHECKING
 
 import uvloop
 
 from .server import Server
-from .types import Config
 from .utils import create_logger
+
+if TYPE_CHECKING:
+    from .config import Config
 
 
 class Worker:
-    def __init__(self, app_factory, config: Config, name: str):
+    def __init__(self, app_factory, config: "Config", name: str):
         self.app_factory = app_factory
         self.worker = None
         self.config = config

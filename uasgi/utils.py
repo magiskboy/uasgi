@@ -42,10 +42,3 @@ def create_logger(name: str, log_level: LOG_LEVEL):
     logger.addHandler(handler)
     return logger
 
-
-def import_from_str(import_str: str):
-    path, attr_str = import_str.split(':')
-    module = importlib.import_module(path)
-    instance = None
-
-

@@ -7,11 +7,12 @@ import asyncio
 from typing import Callable, List, Set, TYPE_CHECKING
 
 from .protocol import H11Protocol
-from .types import ASGIHandler, Config
 from .lifespan import Lifespan
 
 if TYPE_CHECKING:
     from .worker import Worker
+    from .types import ASGIHandler
+    from .config import Config
 
 
 class ServerState:
@@ -24,8 +25,8 @@ class ServerState:
 
 class Server:
     def __init__(self,
-        app_factory: Callable[..., ASGIHandler],
-        config: Config,
+        app_factory: Callable[..., "ASGIHandler"],
+        config: "Config",
         stop_event: asyncio.Event,
         logger: logging.Logger,
         access_logger: logging.Logger,

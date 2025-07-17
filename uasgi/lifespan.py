@@ -4,7 +4,7 @@ import asyncio
 from typing import TYPE_CHECKING, Dict, Literal, TypedDict
 
 if TYPE_CHECKING:
-    from uasgi.types import ASGIInfo
+    from .types import ASGIInfo
 
 
 class LifespanScope(TypedDict):

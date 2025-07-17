@@ -6,7 +6,8 @@ from typing import Optional
 import uvloop
 
 from .server import Server
-from .types import LOG_LEVEL, Config
+from .types import LOG_LEVEL
+from .config import Config
 from .utils import create_logger
 from .arbiter import Arbiter
 
@@ -34,7 +35,6 @@ def run(
         access_log=access_log,
         lifespan=lifespan,
     )
-    config.create_socket()
 
     if config.workers is None:
         uvloop.install()
@@ -42,7 +42,6 @@ def run(
             create_logger('asgi.internal', log_level),
             create_logger('asgi.access', 'INFO')
         )
-        config.create_socket()
         server = Server(
             app_factory=app_factory,
             config=config,
