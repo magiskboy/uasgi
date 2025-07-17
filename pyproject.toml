@@ -17,3 +17,10 @@ classifiers = [
      "Topic :: Internet :: WWW/HTTP :: WSGI :: Server",
      "Framework :: AsyncIO",
 ]
+
+[dependency-groups]
+dev = [
+    "pre-commit>=4.2.0",
+    "ruff>=0.12.4",
+    "ty>=0.0.1a14",
+]

@@ -5,7 +5,7 @@ import socket
 from typing import TYPE_CHECKING, Optional
 
 if TYPE_CHECKING:
-    from .types import LOG_LEVEL
+    from .utils import LOG_LEVEL
 
 
 class Config:
@@ -19,7 +19,7 @@ class Config:
         ssl_cert_file=None,
         ssl_key_file=None,
         ssl=None,
-        log_level: "LOG_LEVEL" = 'INFO',
+        log_level: "LOG_LEVEL" = "INFO",
         lifespan: bool = False,
         access_log: bool = True,
     ):
@@ -37,18 +37,21 @@ class Config:
 
     def get_ssl(self):
         from .utils import create_ssl_context
+
         if self.ssl:
             return self.ssl
 
         if self.ssl_cert_file and self.ssl_key_file:
-            self.ssl = create_ssl_context(self.ssl_cert_file, self.ssl_key_file)
+            self.ssl = create_ssl_context(
+                self.ssl_cert_file, self.ssl_key_file
+            )
 
         return self.ssl
 
     @property
-    def socket(self) -> socket.socket:
+    def socket(self) -> socket.socket:  # ty: ignore[unresolved-attribute]
         if self.sock is None:
-            host = self.host or '127.0.0.1'
+            host = self.host or "127.0.0.1"
             port = self.port or 5000
             self.sock = socket.create_server(
                 address=(host, port),
@@ -61,4 +64,3 @@ class Config:
             os.set_inheritable(self.sock.fileno(), True)
 
         return self.sock
-

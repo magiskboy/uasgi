@@ -8,11 +8,10 @@ from typing import TYPE_CHECKING, List, Literal, Optional, Set, Tuple
 
 import httptools
 
-from .http import HttpScopeRunner
+from .http import HTTPScope, HttpScopeRunner, ASGIHandler
 
 if TYPE_CHECKING:
     from .server import ServerState
-    from .types import ASGIScope, ASGIHandler
     from .config import Config
 
 
@@ -30,7 +29,7 @@ class H11Protocol(asyncio.Protocol):
         server_state: "ServerState",
         logger: logging.Logger,
         access_logger: logging.Logger,
-        config: "Config"
+        config: "Config",
     ):
         # global scope
         self.app: "ASGIHandler" = app
@@ -44,7 +43,9 @@ class H11Protocol(asyncio.Protocol):
         self.config = config
 
         # connection scope
-        self.parser: httptools.HttpRequestParser = httptools.HttpRequestParser(self) #type: ignore
+        self.parser: httptools.HttpRequestParser = httptools.HttpRequestParser(  # type: ignore
+            self
+        )
         self.parser.set_dangerous_leniencies(lenient_data_after_close=True)
         self.client: Tuple[str, int]
         self.server: Tuple[str, int]
@@ -54,15 +55,15 @@ class H11Protocol(asyncio.Protocol):
 
         # request state
         self.url: bytes
-        self.scope: "ASGIScope"
+        self.scope: "HTTPScope"
         self.scheme: Optional[Literal["https", "http", "ws", "wss"]]
         self.headers: List[Tuple[bytes, bytes]]
         self.current_runner: Optional["HttpScopeRunner"] = None
 
-    def connection_made(self, transport: asyncio.Transport) -> None: #type:ignore
+    def connection_made(self, transport: asyncio.Transport) -> None:  # type:ignore
         self.transport = transport
-        self.server = transport.get_extra_info('socket').getsockname()
-        self.client = transport.get_extra_info('peername')
+        self.server = transport.get_extra_info("socket").getsockname()
+        self.client = transport.get_extra_info("peername")
         self.ssl = transport.get_extra_info("sslcontext")
         self.ready_write = asyncio.Event()
         self.ready_write.set()
@@ -108,14 +109,14 @@ class H11Protocol(asyncio.Protocol):
             "headers": self.headers,
             "client": self.client,
             "server": self.server,
-            "state": self.lifespan.app_state
+            "state": self.lifespan.app_state,
         }
 
     def on_header(self, name: bytes, value: bytes):
         self.headers.append((name, value))
 
     def on_headers_complete(self):
-        parsed_url = httptools.parse_url(self.url) #type: ignore
+        parsed_url = httptools.parse_url(self.url)  # type: ignore
         raw_path = parsed_url.path
         path = raw_path.decode("ascii")
         if "%" in path:
@@ -131,7 +132,7 @@ class H11Protocol(asyncio.Protocol):
             app=self.app,
             transport=self.transport,
             message_event=asyncio.Event(),
-            message_complete=self.scope['method'] in NO_BODY_METHOD,
+            message_complete=self.scope["method"] in NO_BODY_METHOD,
             on_response_complete=self.on_response_complete,
             ready_write=self.ready_write,
             config=self.config,
@@ -165,4 +166,3 @@ class H11Protocol(asyncio.Protocol):
     def on_message_complete(self):
         if self.current_runner:
             self.current_runner.message_complete = True
-

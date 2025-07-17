@@ -4,39 +4,75 @@ import socket
 import errno
 import asyncio
 import logging
-from typing import TYPE_CHECKING, Callable, Optional, List, Tuple
-
+from typing import (
+    TYPE_CHECKING,
+    Callable,
+    Optional,
+    List,
+    Tuple,
+    Literal,
+    Iterable,
+    Dict,
+    TypedDict,
+    Coroutine,
+)
 
 if TYPE_CHECKING:
-    from .types import ASGIHandler, ASGIScope
     from .config import Config
+
+
+class ASGIInfo(TypedDict):
+    version: str
+    spec_version: str
+
+
+class ASGIScope(TypedDict):
+    asgi: ASGIInfo
+
+
+ASGIHandler = Callable[[ASGIScope, Callable, Callable], Coroutine]
+
+
+class HTTPScope(ASGIScope):
+    type: Literal["http"]
+    http_version: str
+    method: bytes
+    scheme: Optional[Literal["https", "http", "ws", "wss", None]]
+    path: str
+    raw_path: Optional[bytes]
+    query_string: bytes
+    root_path: Optional[str]
+    headers: Iterable[Tuple[bytes, bytes]]
+    client: Optional[Tuple[str, int]]
+    server: Optional[Tuple[str, int]]
+    state: Optional[Dict]
 
 
 class HttpScopeRunner:
     __slots__ = (
-        'scope',
-        'app',
-        'transport',
-        'message_event',
-        'on_response_complete',
-        'body',
-        'task',
-        'more_body',
-        'message_complete',
-        'ready_write',
-        'config',
-        'access_logger',
-        'status',
-        'content_length',
+        "scope",
+        "app",
+        "transport",
+        "message_event",
+        "on_response_complete",
+        "body",
+        "task",
+        "more_body",
+        "message_complete",
+        "ready_write",
+        "config",
+        "access_logger",
+        "status",
+        "content_length",
     )
 
     def __init__(
         self,
-        scope: "ASGIScope",
+        scope: "HTTPScope",
         app: "ASGIHandler",
         transport: asyncio.Transport,
         message_event: asyncio.Event,
-        on_response_complete: Callable[...],
+        on_response_complete: Callable[[], None],
         message_complete: bool,
         ready_write: asyncio.Event,
         config: "Config",
@@ -79,25 +115,26 @@ class HttpScopeRunner:
             if not self.more_body:
                 self.on_response_complete()
                 if self.config.access_log:
-                    response_time = (time.perf_counter_ns() - start_time) / 1_000_000
+                    response_time = (
+                        time.perf_counter_ns() - start_time
+                    ) / 1_000_000
                     log = '{} - {:.2f} "{} {} {}" {} {}'.format(
-                        self.scope['client'][0], #type: ignore
+                        self.scope["client"][0],  # type: ignore
                         response_time,
-                        self.scope['method'],
-                        self.scope['path'],
-                        self.scope['http_version'],
+                        self.scope["method"],
+                        self.scope["path"],
+                        self.scope["http_version"],
                         self.status,
                         self.content_length,
                     )
                     self.access_logger.info(log)
 
-
     async def receive(self):
-        if self.scope['method'] in [b'GET']:
+        if self.scope["method"] in [b"GET"]:
             event = {
                 "type": "http.request",
                 "body": None,
-                "more_body": not self.message_complete
+                "more_body": not self.message_complete,
             }
             return event
 
@@ -106,23 +143,23 @@ class HttpScopeRunner:
         event = {
             "type": "http.request",
             "body": body,
-            "more_body": not self.message_complete
+            "more_body": not self.message_complete,
         }
         return event
 
     async def send(self, event):
-        _type = event['type']
+        _type = event["type"]
 
-        if _type == 'http.response.start':
+        if _type == "http.response.start":
             data = HttpScopeRunner.build_http_response_header(
-                status=event['status'],
-                http_version='1.1',
-                headers=event['headers'],
+                status=event["status"],
+                http_version="1.1",
+                headers=event["headers"],
             )
-            self.status = event['status']
+            self.status = event["status"]
             self.transport.write(data)
 
-        elif _type == 'http.response.body':
+        elif _type == "http.response.body":
             body = event.get("body")
             more_body = event.get("more_body", False)
             self.more_body = more_body
@@ -131,9 +168,9 @@ class HttpScopeRunner:
                 self.transport.write(body)
                 self.content_length += len(body)
 
-        elif _type == 'http.response.zerocopysend':
-            file = event['file']
-            count = event.get('count')
+        elif _type == "http.response.zerocopysend":
+            file = event["file"]
+            count = event.get("count")
             asyncio.create_task(self.sendfile(file, count))
             self.more_body = False
 
@@ -147,7 +184,7 @@ class HttpScopeRunner:
         offset = 0
         fsize = os.fstat(fd).st_size
 
-        s: socket.socket = self.transport.get_extra_info('socket')
+        s: socket.socket = self.transport.get_extra_info("socket")
         fd_out = s.fileno()
 
         while offset < fsize:
@@ -162,7 +199,7 @@ class HttpScopeRunner:
                 bytes_to_sent = os.sendfile(fd_out, fd, offset, count_to_send)
 
                 if bytes_to_sent == 0:
-                    raise RuntimeError('Connection have been closed')
+                    raise RuntimeError("Connection have been closed")
             except BlockingIOError as e:
                 if e.errno != errno.EAGAIN:
                     raise
@@ -180,7 +217,9 @@ class HttpScopeRunner:
     ):
         phrase = STATUS_PHRASES.get(status, "Unknown")
         buffer = bytearray()
-        buffer.extend(f"HTTP/{http_version} {status} {phrase}\r\n".encode("ascii"))
+        buffer.extend(
+            f"HTTP/{http_version} {status} {phrase}\r\n".encode("ascii")
+        )
 
         for k, v in headers:
             buffer.extend(k)
@@ -198,7 +237,6 @@ STATUS_PHRASES = {
     101: "Switching Protocols",
     102: "Processing",
     103: "Early Hints",
-
     # 2xx: Success
     200: "OK",
     201: "Created",
@@ -210,7 +248,6 @@ STATUS_PHRASES = {
     207: "Multi-Status",
     208: "Already Reported",
     226: "IM Used",
-
     # 3xx: Redirection
     300: "Multiple Choices",
     301: "Moved Permanently",
@@ -220,7 +257,6 @@ STATUS_PHRASES = {
     305: "Use Proxy",
     307: "Temporary Redirect",
     308: "Permanent Redirect",
-
     # 4xx: Client Error
     400: "Bad Request",
     401: "Unauthorized",
@@ -251,7 +287,6 @@ STATUS_PHRASES = {
     429: "Too Many Requests",
     431: "Request Header Fields Too Large",
     451: "Unavailable For Legal Reasons",
-
     # 5xx: Server Error
     500: "Internal Server Error",
     501: "Not Implemented",
@@ -263,6 +298,5 @@ STATUS_PHRASES = {
     507: "Insufficient Storage",
     508: "Loop Detected",
     510: "Not Extended",
-    511: "Network Authentication Required"
+    511: "Network Authentication Required",
 }
-

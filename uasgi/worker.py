@@ -11,6 +11,7 @@ import uvloop
 from .server import Server
 from .utils import create_logger
 
+
 if TYPE_CHECKING:
     from .config import Config
 
@@ -21,8 +22,8 @@ class Worker:
         self.worker = None
         self.config = config
         self.stop_event = asyncio.Event()
-        self.logger = create_logger('asgi.worker', config.log_level)
-        self.access_logger = create_logger('asgi.access', 'INFO')
+        self.logger = create_logger("asgi.worker", config.log_level)
+        self.access_logger = create_logger("asgi.access", "INFO")
         (self._receiver, self._sender) = mp.Pipe(duplex=False)
         self.name = name
 
@@ -33,7 +34,6 @@ class Worker:
     def serve(self):
         uvloop.install()
 
-        self.config.create_socket()
         server = Server(
             app_factory=self.app_factory,
             config=self.config,
@@ -57,13 +57,14 @@ class Worker:
 
     def alive(self, server: Server):
         while not self.stop_event.is_set():
-            self._sender.send({
-                'num_connections': len(server.state.connections),
-                'num_tasks': len(server.state.tasks),
-            })
+            self._sender.send(
+                {
+                    "num_connections": len(server.state.connections),
+                    "num_tasks": len(server.state.tasks),
+                }
+            )
             time.sleep(1)
 
     @property
     def receiver(self):
         return self._receiver
-

@@ -11,7 +11,7 @@ from .lifespan import Lifespan
 
 if TYPE_CHECKING:
     from .worker import Worker
-    from .types import ASGIHandler
+    from .http import ASGIHandler
     from .config import Config
 
 
@@ -24,7 +24,8 @@ class ServerState:
 
 
 class Server:
-    def __init__(self,
+    def __init__(
+        self,
         app_factory: Callable[..., "ASGIHandler"],
         config: "Config",
         stop_event: asyncio.Event,
@@ -69,7 +70,9 @@ class Server:
 
         await self.shutdown()
 
-    def create_protocol(self, _: asyncio.AbstractEventLoop | None = None) -> asyncio.Protocol:
+    def create_protocol(
+        self, _: asyncio.AbstractEventLoop | None = None
+    ) -> asyncio.Protocol:
         return H11Protocol(
             app=self.app,
             server_state=self.state,
@@ -85,8 +88,7 @@ class Server:
     async def shutdown(self):
         if self.config.lifespan:
             await self.lifespan.shutdown()
-    
+
     @property
     def pid(self):
         return os.getpid()
-
