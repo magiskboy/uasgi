@@ -73,7 +73,13 @@ class Server:
         if self.config.enable_h2:
             return H2Connection(self.app, self.state)
 
-        return H1Connection(self.app, self.state)
+        return H1Connection(
+            app=self.app,
+            server_state=self.state,
+            logger=self.logger,
+            access_logger=self.access_logger,
+            config=self.config,
+        )
 
     async def startup(self):
         if self.config.lifespan:

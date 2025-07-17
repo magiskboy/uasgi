@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import logging
 import os
+import time
 import asyncio
 import socket
 import urllib.parse
@@ -10,13 +12,13 @@ from typing import TYPE_CHECKING, Callable, List, Literal, Optional, Set, Tuple
 
 import httptools
 
-from .types import ASGIScope
+from .types import ASGIScope, Config
 from .http import build_http_response_header
 
 
 if TYPE_CHECKING:
     from .server import ServerState
-    from .types import ASGIHandler
+    from .types import ASGIHandler, Config
 
 
 NO_BODY_METHOD = {
@@ -27,7 +29,14 @@ NO_BODY_METHOD = {
 
 
 class H1Connection(asyncio.Protocol):
-    def __init__(self, app, server_state: "ServerState"):
+    def __init__(
+        self,
+        app,
+        server_state: "ServerState",
+        logger: logging.Logger,
+        access_logger: logging.Logger,
+        config: "Config"
+    ):
         # global scope
         self.app: "ASGIHandler" = app
         self.tasks: Set[asyncio.Task] = server_state.tasks
@@ -35,6 +44,9 @@ class H1Connection(asyncio.Protocol):
         self.loop: asyncio.AbstractEventLoop = asyncio.get_running_loop()
         self.lifespan = server_state.lifespan
         self.server_state = server_state
+        self.logger = logger
+        self.access_logger = access_logger
+        self.config = config
 
         # connection scope
         self.parser: httptools.HttpRequestParser = httptools.HttpRequestParser(self) #type: ignore
@@ -126,6 +138,8 @@ class H1Connection(asyncio.Protocol):
             message_complete=self.scope['method'] in NO_BODY_METHOD,
             on_response_complete=self.on_response_complete,
             ready_write=self.ready_write,
+            config=self.config,
+            access_logger=self.access_logger,
         )
 
         if self.current_runner:
@@ -169,17 +183,23 @@ class AppRunner:
         'more_body',
         'message_complete',
         'ready_write',
+        'config',
+        'access_logger',
+        'status',
+        'content_length',
     )
 
     def __init__(
         self,
-        scope,
+        scope: "ASGIScope",
         app: "ASGIHandler",
         transport: asyncio.Transport,
         message_event: asyncio.Event,
         on_response_complete: Callable[...],
         message_complete: bool,
         ready_write: asyncio.Event,
+        config: "Config",
+        access_logger: logging.Logger,
     ) -> None:
         self.app = app
         self.transport = transport
@@ -191,6 +211,10 @@ class AppRunner:
         self.more_body: bool = False
         self.message_complete: bool = message_complete
         self.ready_write = ready_write
+        self.config = config
+        self.access_logger = access_logger
+        self.status: int = 200
+        self.content_length: int = 0
 
     def set_body(self, body: bytes):
         self.body += body
@@ -203,10 +227,9 @@ class AppRunner:
         return drain
 
     async def run(self):
+        start_time = time.perf_counter_ns()
         try:
-            # start lifespan
             return await self.app(self.scope, self.receive, self.send)
-            # end lifespan
         except asyncio.CancelledError:
             ...
         except OSError:
@@ -214,6 +237,19 @@ class AppRunner:
         finally:
             if not self.more_body:
                 self.on_response_complete()
+                if self.config.access_log:
+                    response_time = (time.perf_counter_ns() - start_time) / 1_000_000
+                    log = '{} - {:.2f} "{} {} {}" {} {}'.format(
+                        self.scope['client'][0], #type: ignore
+                        response_time,
+                        self.scope['method'],
+                        self.scope['path'],
+                        self.scope['http_version'],
+                        self.status,
+                        self.content_length,
+                    )
+                    self.access_logger.info(log)
+
 
     async def receive(self):
         if self.scope['method'] in [b'GET']:
@@ -242,6 +278,7 @@ class AppRunner:
                 http_version='1.1',
                 headers=event['headers'],
             )
+            self.status = event['status']
             self.transport.write(data)
 
         elif _type == 'http.response.body':
@@ -251,6 +288,7 @@ class AppRunner:
 
             if body:
                 self.transport.write(body)
+                self.content_length += len(body)
 
         elif _type == 'http.response.zerocopysend':
             file = event['file']

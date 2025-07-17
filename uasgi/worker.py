@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import os
 import time
 import asyncio
 import threading
@@ -14,23 +13,23 @@ from .utils import create_logger
 
 
 class Worker:
-    def __init__(self, app_factory, config: Config):
+    def __init__(self, app_factory, config: Config, name: str):
         self.app_factory = app_factory
         self.worker = None
         self.config = config
         self.stop_event = asyncio.Event()
-        self.logger = create_logger('asgi.internal', config.log_level)
+        self.logger = create_logger('asgi.worker', config.log_level)
         self.access_logger = create_logger('asgi.access', 'INFO')
         (self._receiver, self._sender) = mp.Pipe(duplex=False)
+        self.name = name
 
     def run(self):
-        self.worker = mp.Process(target=self.serve)
+        self.worker = mp.Process(target=self.serve, name=self.name)
         self.worker.start()
 
     def serve(self):
         uvloop.install()
 
-        self.logger.info(f"Worker {self.pid} is running...")
         self.config.create_socket()
         server = Server(
             app_factory=self.app_factory,
@@ -46,15 +45,15 @@ class Worker:
         asyncio.run(server.main(self.config.socket))
 
     def stop(self):
-        self.logger.info(f"Worker {self.pid} is stopping...")
         self.stop_event.set()
 
     @property
     def pid(self):
-        return os.getpid()
+        if self.worker:
+            return self.worker.pid
 
     def alive(self, server: Server):
-        while True:
+        while not self.stop_event.is_set():
             self._sender.send({
                 'num_connections': len(server.state.connections),
                 'num_tasks': len(server.state.tasks),

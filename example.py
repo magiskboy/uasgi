@@ -1,7 +1,7 @@
 import asyncio
-import os
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.responses import StreamingResponse
+from starlette.types import Lifespan
 from uasgi import run, create_logger
 from contextlib import asynccontextmanager
 
@@ -17,23 +17,6 @@ async def lifespan(_):
 
 
 def create_app():
-    async def app(scope, receive, send):
-        if scope['type'] == 'http':
-            fd = os.open('/Users/nkthanh/Downloads/512KB-min.json', os.O_RDONLY | os.O_NONBLOCK, 0o777)
-            fsize = os.fstat(fd).st_size
-            await send({
-                'type': 'http.response.start',
-                'status': 200,
-                'headers': [(b'Content-Length', str(fsize).encode('ascii'))]
-            })
-
-            await send({
-                'type': 'http.response.zerocopysend',
-                'file': fd,
-                'count': 512,
-            })
-
-    return app
     app = FastAPI(
         lifespan=lifespan,
     )
@@ -57,25 +40,17 @@ def create_app():
 
         return StreamingResponse(content=gen())
 
+    return app
 
-def main():
-    enable_http2 = os.getenv('H2', 'false') == 'true'
-    if enable_http2:
-        print('Server is running with HTTP/2')
-    else:
-        print('Server is running with HTTP/1.1')
 
+if __name__ == '__main__':
     run(
         app_factory=create_app, 
         host='127.0.0.1',
         port=5001,
         workers=4,
         log_level='DEBUG',
-        # ssl_cert_file='/tmp/certificates/server.crt',
-        # ssl_key_file='/tmp/certificates/server.key',
+        lifespan=True,
+        access_log=True,
     )
-
-
-if __name__ == '__main__':
-    main()
 

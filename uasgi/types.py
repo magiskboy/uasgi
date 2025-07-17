@@ -46,6 +46,7 @@ class Config:
         enable_h2=False,
         log_level: LOG_LEVEL = 'INFO',
         lifespan: bool = False,
+        access_log: bool = True,
     ):
         self.host = host
         self.port = port
@@ -58,6 +59,7 @@ class Config:
         self.enable_h2 = enable_h2
         self.log_level: LOG_LEVEL = log_level
         self.lifespan = lifespan
+        self.access_log = access_log
 
     def get_ssl(self):
         from .utils import create_ssl_context

@@ -36,14 +36,16 @@ class Arbiter:
 
             for worker in _workers:
                 worker.stop()
+                self.logger.info(f'Worker {worker.pid} is stopping...')
 
             stop_event.set()
 
         self.on_stop_signal(shutdown)
 
-        for _ in range(self.config.workers):
-            worker = Worker(self.app_factory, self.config)
+        for i in range(self.config.workers):
+            worker = Worker(self.app_factory, self.config, f'worker-{i}')
             worker.run()
+            self.logger.info(f'Worker {worker.pid} is starting...')
             _workers.append(worker)
 
         with ThreadPoolExecutor(max_workers=len(_workers)) as pool:
@@ -54,3 +56,4 @@ class Arbiter:
 
                 time.sleep(1)
 
+            pool.shutdown(wait=True)
