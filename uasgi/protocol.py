@@ -28,7 +28,7 @@ NO_BODY_METHOD = {
 }
 
 
-class H1Connection(asyncio.Protocol):
+class H11Protocol(asyncio.Protocol):
     def __init__(
         self,
         app,

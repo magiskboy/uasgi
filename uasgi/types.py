@@ -43,7 +43,6 @@ class Config:
         ssl_cert_file=None,
         ssl_key_file=None,
         ssl=None,
-        enable_h2=False,
         log_level: LOG_LEVEL = 'INFO',
         lifespan: bool = False,
         access_log: bool = True,
@@ -56,7 +55,6 @@ class Config:
         self.ssl = ssl
         self.ssl_cert_file=ssl_cert_file
         self.ssl_key_file=ssl_key_file
-        self.enable_h2 = enable_h2
         self.log_level: LOG_LEVEL = log_level
         self.lifespan = lifespan
         self.access_log = access_log
@@ -68,8 +66,6 @@ class Config:
 
         if self.ssl_cert_file and self.ssl_key_file:
             self.ssl = create_ssl_context(self.ssl_cert_file, self.ssl_key_file)
-            if self.enable_h2:
-                self.ssl.set_alpn_protocols(['h2'])
 
         return self.ssl
 

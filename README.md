@@ -1,6 +1,6 @@
 # uASGI: A High-Performance ASGI Web Server
 
-uASGI is a lightweight and efficient ASGI (Asynchronous Server Gateway Interface) web server for Python, designed for speed and flexibility. It supports both HTTP/1.1 and HTTP/2 protocols, with built-in SSL/TLS capabilities and a multiprocessing worker model for handling concurrent requests.
+uASGI is a lightweight and efficient ASGI (Asynchronous Server Gateway Interface) web server for Python, designed for speed and flexibility. It supports only HTTP/1.1 protocols, with built-in SSL/TLS capabilities and a multiprocessing worker model for handling concurrent requests.
 
 Inspired by the need for a simple yet powerful ASGI server, uASGI aims to provide a solid foundation for deploying asynchronous Python web applications.
 
@@ -8,7 +8,6 @@ Inspired by the need for a simple yet powerful ASGI server, uASGI aims to provid
 
 *   **ASGI Specification Compliance**: Fully compatible with ASGI 2.0 and 3.0 applications (HTTP and Lifespan).
 *   **HTTP/1.1 Support**: Robust handling of HTTP/1.1 requests using `httptools`.
-*   **HTTP/2 Support**: Native HTTP/2 (H2) implementation using `h2` for improved performance and multiplexing.
 *   **SSL/TLS**: Secure communication with built-in SSL context creation.
 *   **Multiprocessing Workers**: Scale your application across multiple CPU cores with a configurable worker pool.
 *   **Asynchronous I/O**: Built on `asyncio` and optimized with `uvloop` for high concurrency.
@@ -92,7 +91,6 @@ The `run` function accepts several parameters to configure the server:
 *   `workers` (int, optional): The number of worker processes to spawn. If `None`, runs in a single process.
 *   `ssl_cert_file` (str, optional): Path to the SSL certificate file.
 *   `ssl_key_file` (str, optional): Path to the SSL key file.
-*   `enable_h2` (bool): Enable HTTP/2 protocol (default: `False`). Requires SSL.
 *   `log_level` (str): Set the logging level (`'DEBUG'`, `'INFO'`, `'WARNING'`, `'ERROR'`).
 
 ## Development

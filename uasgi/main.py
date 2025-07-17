@@ -19,7 +19,6 @@ def run(
     workers: Optional[int] = None,
     ssl_cert_file: Optional[str] = None,
     ssl_key_file: Optional[str] = None,
-    enable_h2: bool = False,
     log_level: LOG_LEVEL = 'INFO',
     access_log: bool = True,
     lifespan: bool = True
@@ -31,7 +30,6 @@ def run(
         workers=workers,
         ssl_key_file=ssl_key_file,
         ssl_cert_file=ssl_cert_file,
-        enable_h2=enable_h2,
         log_level=log_level,
         access_log=access_log,
         lifespan=lifespan,

@@ -4,6 +4,7 @@ import sys
 import ssl
 import logging
 from typing import TYPE_CHECKING
+import importlib
 
 if TYPE_CHECKING:
     from .types import LOG_LEVEL
@@ -40,4 +41,11 @@ def create_logger(name: str, log_level: LOG_LEVEL):
     handler.setFormatter(fmt)
     logger.addHandler(handler)
     return logger
+
+
+def import_from_str(import_str: str):
+    path, attr_str = import_str.split(':')
+    module = importlib.import_module(path)
+    instance = None
+
 

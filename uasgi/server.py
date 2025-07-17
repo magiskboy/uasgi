@@ -6,8 +6,7 @@ import logging
 import asyncio
 from typing import Callable, List, Set, TYPE_CHECKING
 
-from .h1_impl import H1Connection
-from .h2_impl import H2Connection
+from .protocol import H11Protocol
 from .types import ASGIHandler, Config
 from .lifespan import Lifespan
 
@@ -70,10 +69,7 @@ class Server:
         await self.shutdown()
 
     def create_protocol(self, _: asyncio.AbstractEventLoop | None = None) -> asyncio.Protocol:
-        if self.config.enable_h2:
-            return H2Connection(self.app, self.state)
-
-        return H1Connection(
+        return H11Protocol(
             app=self.app,
             server_state=self.state,
             logger=self.logger,
