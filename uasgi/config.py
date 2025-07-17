@@ -48,8 +48,7 @@ class Config:
 
         return self.ssl
 
-    @property
-    def socket(self) -> socket.socket:  # ty: ignore[unresolved-attribute]
+    def setup_socket(self):
         if self.sock is None:
             host = self.host or "127.0.0.1"
             port = self.port or 5000
@@ -64,3 +63,10 @@ class Config:
             os.set_inheritable(self.sock.fileno(), True)
 
         return self.sock
+
+    @property
+    def socket(self) -> socket.socket:  # ty: ignore[unresolved-attribute]
+        if self.sock:
+            return self.sock
+
+        return self.setup_socket()

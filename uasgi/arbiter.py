@@ -1,10 +1,9 @@
 from __future__ import annotations
 
 import logging
-import time
 import signal
 import multiprocessing as mp
-from concurrent.futures import ThreadPoolExecutor, as_completed
+import time
 from typing import TYPE_CHECKING, List
 
 from .worker import Worker
@@ -26,7 +25,7 @@ class Arbiter:
 
     def start(self):
         if not self.config.workers:
-            raise RuntimeError('Number of workers must be greater than 0')
+            raise RuntimeError("Number of workers must be greater than 0")
 
         _workers: List[Worker] = []
         stop_event = mp.Event()
@@ -36,24 +35,17 @@ class Arbiter:
 
             for worker in _workers:
                 worker.stop()
-                self.logger.info(f'Worker {worker.pid} is stopping...')
+                self.logger.info(f"Worker {worker.pid} is stopping...")
 
             stop_event.set()
 
         self.on_stop_signal(shutdown)
 
         for i in range(self.config.workers):
-            worker = Worker(self.app_factory, self.config, f'worker-{i}')
+            worker = Worker(self.app_factory, self.config, f"worker-{i}")
             worker.run()
-            self.logger.info(f'Worker {worker.pid} is starting...')
+            self.logger.info(f"Worker {worker.pid} is starting...")
             _workers.append(worker)
 
-        with ThreadPoolExecutor(max_workers=len(_workers)) as pool:
-            while not stop_event.is_set():
-                fs = [pool.submit(worker.receiver.recv) for worker in _workers]
-                for future in as_completed(fs, timeout=5):
-                    ...
-
-                time.sleep(1)
-
-            pool.shutdown(wait=True)
+        while not stop_event.is_set():
+            time.sleep(1)

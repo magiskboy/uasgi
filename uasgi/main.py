@@ -56,6 +56,8 @@ def run(
             logger.info("Server is stopping...")
 
     else:
+        config.setup_socket()
+
         arbiter = Arbiter(
             app_factory=app_factory,
             config=config,

@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import time
 import asyncio
-import threading
 import multiprocessing as mp
 from typing import TYPE_CHECKING
 
@@ -42,8 +41,8 @@ class Worker:
             access_logger=self.access_logger,
         )
 
-        alive_t = threading.Thread(target=self.alive, args=(server,))
-        alive_t.start()
+        # alive_t = threading.Thread(target=self.alive, args=(server,))
+        # alive_t.start()
 
         asyncio.run(server.main(self.config.socket))
 
