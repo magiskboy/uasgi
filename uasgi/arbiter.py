@@ -1,56 +1,84 @@
 from __future__ import annotations
 
-import logging
+import os
+import asyncio
+import sys
+import threading
 import time
-import signal
 import multiprocessing as mp
-from concurrent.futures import ThreadPoolExecutor, as_completed
-from typing import TYPE_CHECKING, List
+from typing import TYPE_CHECKING, Callable, List
 
+from .utils import create_logger
 from .worker import Worker
 
+
 if TYPE_CHECKING:
-    from .types import Config
+    from .config import Config
+    from .uhttp import ASGIHandler
 
 
 class Arbiter:
-    def __init__(self, app_factory, config: "Config", logger: logging.Logger):
-        self.app_factory = app_factory
+    def __init__(
+        self,
+        app: str | Callable[[], "ASGIHandler"],
+        config: "Config",
+    ):
+        if asyncio.iscoroutinefunction(app):
+            raise RuntimeError(
+                "You must use str or factory function in worker mode"
+            )
+
+        self.app = app
         self.config = config
-        self.logger = logger
+        self.logger = create_logger(__name__, config.log_level, config.log_fmt)
+        self.stop_event = mp.Event()
+        self.workers: List[Worker] = []
 
-    def on_stop_signal(self, handler):
-        STOP_SIGNALS = [signal.SIGINT, signal.SIGHUP, signal.SIGTERM]
-        for s in STOP_SIGNALS:
-            signal.signal(s, handler)
+    def watch_log(self):
+        def handle_for(out_fd, in_fd):
+            os.sendfile(out_fd, in_fd, 0, 1024)
 
-    def start(self):
+        loop = asyncio.new_event_loop()
+        for worker in self.workers:
+            loop.add_reader(
+                worker.stdout_fd,
+                handle_for,
+                sys.stdout.fileno(),
+                worker.stdout_fd,
+            )
+            loop.add_reader(
+                worker.stderr_fd,
+                handle_for,
+                sys.stderr.fileno(),
+                worker.stderr_fd,
+            )
+
+        loop.run_forever()
+
+    def main(self):
         if not self.config.workers:
-            raise RuntimeError('Number of workers must be greater than 0')
+            raise RuntimeError("Number of workers must be greater than 0")
 
-        _workers: List[Worker] = []
-        stop_event = mp.Event()
+        self.logger.debug("Arbitter is running")
 
-        def shutdown(*_):
-            nonlocal stop_event
+        for i in range(self.config.workers):
+            worker = Worker(self.app, self.config, f"worker-{i}")
+            self.workers.append(worker)
 
-            for worker in _workers:
-                worker.stop()
+        threading.Thread(target=self.watch_log, daemon=True).start()
 
-            stop_event.set()
-
-        self.on_stop_signal(shutdown)
-
-        for _ in range(self.config.workers):
-            worker = Worker(self.app_factory, self.config)
+        for worker in self.workers:
             worker.run()
-            _workers.append(worker)
 
-        with ThreadPoolExecutor(max_workers=len(_workers)) as pool:
-            while not stop_event.is_set():
-                fs = [pool.submit(worker.receiver.recv) for worker in _workers]
-                for future in as_completed(fs, timeout=5):
-                    ...
-
+        while not self.stop_event.is_set():
+            try:
                 time.sleep(1)
+            except KeyboardInterrupt:
+                self.stop()
 
+        self.logger.debug("Arbiter was stopped")
+
+    def stop(self):
+        self.stop_event.set()
+        for worker in self.workers:
+            worker.join()

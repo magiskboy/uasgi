@@ -1,14 +1,14 @@
 [project]
 name = "uasgi"
 version = "0.1.1b1"
-description = "Add your description here"
+description = "uASGI: A High-Performance ASGI Web Server"
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
-    "h2>=4.2.0",
+    "click>=8.2.1",
     "httptools>=0.6.4",
-    "setuptools>=80.9.0",
     "uvloop>=0.21.0",
+    "watchdog>=6.0.0",
 ]
 classifiers = [
     "Programming Language :: Python :: 3",
@@ -17,4 +17,11 @@ classifiers = [
      "Operating System :: OS Independent",
      "Topic :: Internet :: WWW/HTTP :: WSGI :: Server",
      "Framework :: AsyncIO",
+]
+
+[dependency-groups]
+dev = [
+    "pre-commit>=4.2.0",
+    "ruff>=0.12.4",
+    "ty>=0.0.1a14",
 ]

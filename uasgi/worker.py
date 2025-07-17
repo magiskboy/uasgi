@@ -1,67 +1,95 @@
 from __future__ import annotations
 
 import os
-import time
-import asyncio
-import threading
 import multiprocessing as mp
+import sys
+from typing import TYPE_CHECKING, Optional
 
 import uvloop
 
 from .server import Server
-from .types import Config
-from .utils import create_logger
+from .utils import create_logger, load_app
+
+
+if TYPE_CHECKING:
+    from .config import Config
+
+uvloop.install()
 
 
 class Worker:
-    def __init__(self, app_factory, config: Config):
-        self.app_factory = app_factory
+    def __init__(self, app, config: "Config", name: str):
+        self.app = app
         self.worker = None
         self.config = config
-        self.stop_event = asyncio.Event()
-        self.logger = create_logger('asgi.internal', config.log_level)
-        self.access_logger = create_logger('asgi.access', 'INFO')
-        (self._receiver, self._sender) = mp.Pipe(duplex=False)
-
-    def run(self):
-        self.worker = mp.Process(target=self.serve)
-        self.worker.start()
-
-    def serve(self):
-        uvloop.install()
-
-        self.logger.info(f"Worker {self.pid} is running...")
-        self.config.create_socket()
-        server = Server(
-            app_factory=self.app_factory,
-            config=self.config,
-            stop_event=self.stop_event,
-            logger=self.logger,
-            access_logger=self.access_logger,
+        self.logger = create_logger(
+            __name__, self.config.log_level, self.config.log_fmt
         )
 
-        alive_t = threading.Thread(target=self.alive, args=(server,))
-        alive_t.start()
+        self.name = name
+        self.server: Optional[Server] = None
+        (self._read_stdout_fd, self._write_stdout_fd) = os.pipe()
+        (self._read_stderr_fd, self._write_stderr_fd) = os.pipe()
 
-        asyncio.run(server.main(self.config.socket))
+    @property
+    def stdout_fd(self):
+        return self._read_stdout_fd
 
-    def stop(self):
-        self.logger.info(f"Worker {self.pid} is stopping...")
-        self.stop_event.set()
+    @property
+    def stderr_fd(self):
+        return self._read_stderr_fd
+
+    def run(self):
+        self.worker = mp.Process(
+            target=self.main,
+            name=self.name,
+            daemon=False,
+            args=(
+                self._write_stdout_fd.is_integer(),
+                self._write_stderr_fd.is_integer(),
+            ),
+        )
+        self.worker.start()
+
+    def main(self, stdout_writer, stderr_writer):
+        """Entrypoint where child processes start and run"""
+        # https://man7.org/linux/man-pages/man2/dup.2.html
+        os.dup2(stdout_writer, sys.stdout.fileno())
+        os.dup2(stderr_writer, sys.stderr.fileno())
+        sys.stdout = sys.__stdout__ = open(1, "w", buffering=1)
+        sys.stderr = sys.__stderr__ = open(2, "w", buffering=1)
+
+        logger = create_logger(
+            __name__, self.config.log_level, self.config.log_fmt
+        )
+
+        app = load_app(self.app)
+        server = Server(
+            app=app,
+            config=self.config,
+        )
+
+        # when user presses Ctrl-C, SIGINT will be sent to all processes
+        # includes children so we should catch them in children at here
+        try:
+            logger.info(f"Worker {self.pid} is running")
+            server.run()
+        except KeyboardInterrupt:
+            server.stop()
+        finally:
+            self.logger.info(f"Worker {self.pid} was stopped")
 
     @property
     def pid(self):
-        return os.getpid()
+        if self.worker:
+            return self.worker.pid
 
-    def alive(self, server: Server):
-        while True:
-            self._sender.send({
-                'num_connections': len(server.state.connections),
-                'num_tasks': len(server.state.tasks),
-            })
-            time.sleep(1)
+        return "Unknown"
 
-    @property
-    def receiver(self):
-        return self._receiver
+    def reload(self):
+        self.logger.info("Worker is reloading")
+        self.run()
 
+    def join(self):
+        if self.worker and self.worker.is_alive():
+            self.worker.join(timeout=5)

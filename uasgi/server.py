@@ -2,17 +2,18 @@ from __future__ import annotations
 
 import os
 import socket
-import logging
 import asyncio
-from typing import Callable, List, Set, TYPE_CHECKING
+from typing import List, Set, TYPE_CHECKING
 
-from .h1_impl import H1Connection
-from .h2_impl import H2Connection
-from .types import ASGIHandler, Config
+from .utils import create_logger
+from .protocol import H11Protocol
 from .lifespan import Lifespan
+
 
 if TYPE_CHECKING:
     from .worker import Worker
+    from .uhttp import ASGIHandler
+    from .config import Config
 
 
 class ServerState:
@@ -24,27 +25,30 @@ class ServerState:
 
 
 class Server:
-    def __init__(self,
-        app_factory: Callable[..., ASGIHandler],
-        config: Config,
-        stop_event: asyncio.Event,
-        logger: logging.Logger,
-        access_logger: logging.Logger,
+    def __init__(
+        self,
+        app: "ASGIHandler",
+        config: "Config",
     ):
-        self.app_factory = app_factory
         self.workers: List["Worker"] = []
         self.config = config
-        self.app = self.app_factory()
-        self.stop_event = stop_event
+        self.app = app
         self.server: asyncio.Server
-        self.logger = logger
-        self.access_logger = access_logger
+        self.logger = create_logger(__name__, config.log_level, config.log_fmt)
+        self.access_logger = create_logger(
+            "uasgi.access", "INFO", config.access_log_fmt
+        )
         self.lifespan = Lifespan(self.app)
         self.state = ServerState(self.lifespan)
 
-    async def main(self, sock: socket.socket):
-        self.logger.info(f"Worker {self.pid} is running...")
+    def run(self):
+        try:
+            asyncio.run(self.main(self.config.socket))
+        except KeyboardInterrupt:
+            self.stop()
 
+    async def main(self, sock: socket.socket):
+        """Entrypoint where server starts and runs"""
         loop = asyncio.get_running_loop()
 
         self.server = await loop.create_server(
@@ -56,34 +60,37 @@ class Server:
 
         await self.startup()
 
-        stop_event_task = asyncio.create_task(self.stop_event.wait())
-        server_listen_task = asyncio.create_task(self.server.serve_forever())
-        gather = asyncio.wait(
-            fs=[stop_event_task, server_listen_task],
-            return_when=asyncio.FIRST_COMPLETED,
-        )
         try:
-            await gather
+            await self.server.serve_forever()
         except asyncio.CancelledError:
             ...
+        finally:
+            await self.shutdown()
 
-        await self.shutdown()
-
-    def create_protocol(self, _: asyncio.AbstractEventLoop | None = None) -> asyncio.Protocol:
-        if self.config.enable_h2:
-            return H2Connection(self.app, self.state)
-
-        return H1Connection(self.app, self.state)
+    def create_protocol(
+        self, loop: asyncio.AbstractEventLoop | None = None
+    ) -> asyncio.Protocol:
+        return H11Protocol(
+            app=self.app,
+            server_state=self.state,
+            logger=self.logger,
+            access_logger=self.access_logger,
+            config=self.config,
+            loop=loop,
+        )
 
     async def startup(self):
+        self.logger.debug("Server is starting up")
         if self.config.lifespan:
             await self.lifespan.startup()
 
     async def shutdown(self):
+        self.logger.debug("Server is shutting down")
         if self.config.lifespan:
             await self.lifespan.shutdown()
-    
-    @property
-    def pid(self):
-        return os.getpid()
 
+        await self.server.wait_closed()
+
+    def stop(self):
+        self.logger.debug("Server is stopping")
+        self.server.close()

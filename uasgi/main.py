@@ -1,37 +1,40 @@
 from __future__ import annotations
 
-import asyncio
-import signal
-from typing import Optional
+import sys
+import threading
+from typing import TYPE_CHECKING, Callable, Optional, cast
 
 import uvloop
 
 from .server import Server
-from .types import LOG_LEVEL, Config
-from .utils import create_logger
+from .utils import LOG_LEVEL
+from .config import Config
+from .utils import load_app
 from .arbiter import Arbiter
+from .reloader import Reloader
 
 
-STOP_SIGNALS = [signal.SIGINT, signal.SIGHUP, signal.SIGTERM]
-
-
-def on_stop_signals(handler):
-    global STOP_SIGNALS
-    for s in STOP_SIGNALS:
-        signal.signal(s, handler)
+if TYPE_CHECKING:
+    from .uhttp import ASGIHandler
 
 
 def run(
-    app_factory,
-    host: str = '127.0.0.1',
+    app: str | Callable[[], "ASGIHandler"] | "ASGIHandler",
+    host: str = "127.0.0.1",
     port: int = 5000,
     backlog: Optional[int] = 1024,
-    workers: Optional[int] = None,
+    workers: Optional[int] = 1,
     ssl_cert_file: Optional[str] = None,
     ssl_key_file: Optional[str] = None,
-    enable_h2: bool = False,
-    log_level: LOG_LEVEL = 'INFO'
+    log_level: LOG_LEVEL = "INFO",
+    access_log: bool = True,
+    lifespan: bool = True,
+    reloader: Optional[bool] = False,
+    log_fmt: Optional[str] = None,
+    access_log_fmt: Optional[str] = None,
 ):
+    uvloop.install()
+
     config = Config(
         host=host,
         port=port,
@@ -39,38 +42,36 @@ def run(
         workers=workers,
         ssl_key_file=ssl_key_file,
         ssl_cert_file=ssl_cert_file,
-        enable_h2=enable_h2,
         log_level=log_level,
+        access_log=access_log,
+        lifespan=lifespan,
+        access_log_fmt=access_log_fmt,
+        log_fmt=log_fmt,
     )
-    config.create_socket()
+    config.setup_socket()
+    config.workers = config.workers or 1
 
-    if config.workers is None:
-        uvloop.install()
-        logger = create_logger('asgi.internal', log_level)
-        access_logger = create_logger('asgi.access', 'INFO')
-        stop_event = asyncio.Event()
-        config.create_socket()
-        server = Server(
-            app_factory=app_factory,
+    sys.stdout.write(str(config))
+
+    if reloader:
+        Reloader(
+            app=app,  # type: ignore
             config=config,
-            stop_event=stop_event,
-            logger=logger,
-            access_logger=access_logger,
-        )
+            stop_event=threading.Event(),
+        ).main()
+        return
 
-        on_stop_signals(lambda *_: stop_event.set())
-
-        asyncio.run(server.main(config.socket))
-
-    else:
-
-        arbiter = Arbiter(
-            app_factory=app_factory,
+    if config.workers == 1 and not reloader:
+        loaded_app = load_app(app)
+        Server(
+            app=loaded_app,
             config=config,
-            logger=create_logger('asgi.internal', config.log_level),
-        )
-        arbiter.start()
+        ).run()
+        return
 
+    Arbiter(
+        app=cast(Callable[[], "ASGIHandler"] | str, app),
+        config=config,
+    ).main()
 
-def _monitor(workers: List[Worker]):
-    ...
+    return
