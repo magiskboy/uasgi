@@ -43,9 +43,7 @@ class H11Protocol(asyncio.Protocol):
         self.config = config
 
         # connection scope
-        self.parser: httptools.HttpRequestParser = httptools.HttpRequestParser(  # type: ignore
-            self
-        )
+        self.parser = httptools.HttpRequestParser(self)  # type: ignore
         self.parser.set_dangerous_leniencies(lenient_data_after_close=True)
         self.client: Tuple[str, int]
         self.server: Tuple[str, int]
