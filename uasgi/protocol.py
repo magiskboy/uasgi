@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING, List, Literal, Optional, Set, Tuple
 
 import httptools
 
-from .http import HTTPScope, HttpScopeRunner, ASGIHandler
+from .uhttp import HTTPScope, HttpScopeRunner, ASGIHandler
 
 if TYPE_CHECKING:
     from .server import ServerState

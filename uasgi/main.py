@@ -13,7 +13,7 @@ from .utils import create_logger, load_app
 from .arbiter import Arbiter
 
 if TYPE_CHECKING:
-    from .http import ASGIHandler
+    from .uhttp import ASGIHandler
 
 
 def run(

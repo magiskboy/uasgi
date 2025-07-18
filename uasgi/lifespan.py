@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 from typing import Any, Dict, Literal
 
-from .http import ASGIScope
+from .uhttp import ASGIScope
 
 
 class LifespanScope(ASGIScope):

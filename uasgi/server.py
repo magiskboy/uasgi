@@ -11,7 +11,7 @@ from .lifespan import Lifespan
 
 if TYPE_CHECKING:
     from .worker import Worker
-    from .http import ASGIHandler
+    from .uhttp import ASGIHandler
     from .config import Config
 
 

@@ -9,7 +9,7 @@ import importlib
 
 
 if TYPE_CHECKING:
-    from .http import ASGIHandler
+    from .uhttp import ASGIHandler
 
 
 LOG_LEVEL = Literal["DEBUG", "INFO", "WARNING", "ERROR"]

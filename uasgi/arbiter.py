@@ -10,7 +10,7 @@ from .worker import Worker
 
 if TYPE_CHECKING:
     from .config import Config
-    from uasgi.http import ASGIHandler
+    from .uhttp import ASGIHandler
 
 
 class Arbiter:
