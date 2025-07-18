@@ -4,17 +4,23 @@ import logging
 import signal
 import multiprocessing as mp
 import time
-from typing import TYPE_CHECKING, List
+from typing import TYPE_CHECKING, Callable, List
 
 from .worker import Worker
 
 if TYPE_CHECKING:
     from .config import Config
+    from uasgi.http import ASGIHandler
 
 
 class Arbiter:
-    def __init__(self, app_factory, config: "Config", logger: logging.Logger):
-        self.app_factory = app_factory
+    def __init__(
+        self,
+        app: str | Callable[[], "ASGIHandler"],
+        config: "Config",
+        logger: logging.Logger,
+    ):
+        self.app = app
         self.config = config
         self.logger = logger
 
@@ -42,7 +48,7 @@ class Arbiter:
         self.on_stop_signal(shutdown)
 
         for i in range(self.config.workers):
-            worker = Worker(self.app_factory, self.config, f"worker-{i}")
+            worker = Worker(self.app, self.config, f"worker-{i}")
             worker.run()
             self.logger.info(f"Worker {worker.pid} is starting...")
             _workers.append(worker)

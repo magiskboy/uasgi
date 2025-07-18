@@ -4,7 +4,7 @@ import os
 import socket
 import logging
 import asyncio
-from typing import Callable, List, Set, TYPE_CHECKING
+from typing import List, Set, TYPE_CHECKING
 
 from .protocol import H11Protocol
 from .lifespan import Lifespan
@@ -26,16 +26,15 @@ class ServerState:
 class Server:
     def __init__(
         self,
-        app_factory: Callable[..., "ASGIHandler"],
+        app: "ASGIHandler",
         config: "Config",
         stop_event: asyncio.Event,
         logger: logging.Logger,
         access_logger: logging.Logger,
     ):
-        self.app_factory = app_factory
         self.workers: List["Worker"] = []
         self.config = config
-        self.app = self.app_factory()
+        self.app = app
         self.stop_event = stop_event
         self.server: asyncio.Server
         self.logger = logger

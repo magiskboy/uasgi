@@ -2,8 +2,14 @@ from __future__ import annotations
 
 import sys
 import ssl
+import asyncio
 import logging
-from typing import Literal
+from typing import TYPE_CHECKING, Literal, cast
+import importlib
+
+
+if TYPE_CHECKING:
+    from .http import ASGIHandler
 
 
 LOG_LEVEL = Literal["DEBUG", "INFO", "WARNING", "ERROR"]
@@ -47,3 +53,33 @@ def create_logger(name: str, log_level: LOG_LEVEL):
     handler.setFormatter(fmt)
     logger.addHandler(handler)
     return logger
+
+
+def import_string(str_import: str) -> "ASGIHandler":
+    try:
+        module_str, instance_str = str_import.split(":")
+    except ValueError as e:
+        raise ImportError(
+            "Import string must be <module path>:<attribute name> format"
+        ) from e
+
+    module = importlib.import_module(module_str)
+    instance = getattr(module, instance_str)
+
+    if instance is None:
+        raise ImportError(f"{instance_str} is not in {module_str}")
+
+    return instance
+
+
+def load_app(app) -> "ASGIHandler":
+    if isinstance(app, str):
+        return import_string(app)
+
+    if callable(app):
+        if asyncio.iscoroutinefunction(app):
+            return app
+
+        return cast("ASGIHandler", app())
+
+    raise ImportError("Cannot load app")

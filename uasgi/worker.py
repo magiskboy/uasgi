@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING
 import uvloop
 
 from .server import Server
-from .utils import create_logger
+from .utils import create_logger, load_app
 
 
 if TYPE_CHECKING:
@@ -16,8 +16,8 @@ if TYPE_CHECKING:
 
 
 class Worker:
-    def __init__(self, app_factory, config: "Config", name: str):
-        self.app_factory = app_factory
+    def __init__(self, app, config: "Config", name: str):
+        self.app = app
         self.worker = None
         self.config = config
         self.stop_event = asyncio.Event()
@@ -33,16 +33,14 @@ class Worker:
     def serve(self):
         uvloop.install()
 
+        app = load_app(self.app)
         server = Server(
-            app_factory=self.app_factory,
+            app=app,
             config=self.config,
             stop_event=self.stop_event,
             logger=self.logger,
             access_logger=self.access_logger,
         )
-
-        # alive_t = threading.Thread(target=self.alive, args=(server,))
-        # alive_t.start()
 
         asyncio.run(server.main(self.config.socket))
 

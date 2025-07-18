@@ -1,19 +1,23 @@
 from __future__ import annotations
 
 import asyncio
-from typing import Optional
+from typing import TYPE_CHECKING, Callable, Optional, cast
 
 import uvloop
+
 
 from .server import Server
 from .utils import LOG_LEVEL
 from .config import Config
-from .utils import create_logger
+from .utils import create_logger, load_app
 from .arbiter import Arbiter
+
+if TYPE_CHECKING:
+    from .http import ASGIHandler
 
 
 def run(
-    app_factory,
+    app: str | Callable[[], "ASGIHandler"] | "ASGIHandler",
     host: str = "127.0.0.1",
     port: int = 5000,
     backlog: Optional[int] = 1024,
@@ -36,6 +40,8 @@ def run(
         lifespan=lifespan,
     )
 
+    loaded_app = load_app(app)
+
     if config.workers is None:
         uvloop.install()
         (logger, access_logger) = (
@@ -43,7 +49,7 @@ def run(
             create_logger("asgi.access", "INFO"),
         )
         server = Server(
-            app_factory=app_factory,
+            app=loaded_app,
             config=config,
             stop_event=asyncio.Event(),
             logger=logger,
@@ -58,8 +64,13 @@ def run(
     else:
         config.setup_socket()
 
+        if asyncio.iscoroutinefunction(app):
+            raise RuntimeError(
+                "You must use str or factory function in worker mode"
+            )
+
         arbiter = Arbiter(
-            app_factory=app_factory,
+            app=cast(Callable[[], "ASGIHandler"] | str, app),
             config=config,
             logger=create_logger("asgi.internal", config.log_level),
         )
