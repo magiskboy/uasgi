@@ -40,6 +40,7 @@ cli = click.Group(name="uasgi", help="A High-Performance ASGI Web Server")
 @click.option(
     "--workers",
     type=int,
+    default=1,
     help="The number of worker processes to use. Defaults to 1 worker.",
 )
 @click.option(
@@ -75,6 +76,13 @@ cli = click.Group(name="uasgi", help="A High-Performance ASGI Web Server")
     show_default=True,
     help="Enable/disable ASGI lifespan protocol.",
 )
+@click.option(
+    "--reloader/--no-reloader",
+    is_flag=True,
+    default=False,
+    show_default=True,
+    help="Enable/disable auto reloader.",
+)
 def run(
     app: str,
     host: str,
@@ -86,6 +94,7 @@ def run(
     log_level: LOG_LEVEL,
     access_log: bool,
     lifespan: bool,
+    reloader: Optional[bool],
 ):
     _run(
         app=app,
@@ -98,4 +107,5 @@ def run(
         log_level=log_level,
         access_log=access_log,
         lifespan=lifespan,
+        reloader=reloader,
     )

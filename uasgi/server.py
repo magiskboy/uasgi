@@ -28,14 +28,13 @@ class Server:
         self,
         app: "ASGIHandler",
         config: "Config",
-        stop_event: asyncio.Event,
         logger: logging.Logger,
         access_logger: logging.Logger,
     ):
         self.workers: List["Worker"] = []
         self.config = config
         self.app = app
-        self.stop_event = stop_event
+        self.stop_event = asyncio.Event()
         self.server: asyncio.Server
         self.logger = logger
         self.access_logger = access_logger
@@ -64,10 +63,10 @@ class Server:
         )
         try:
             await gather
-        except asyncio.CancelledError:
-            ...
-
-        await self.shutdown()
+        except asyncio.CancelledError as e:
+            self.logger.info(str(e))
+        finally:
+            await self.shutdown()
 
     def create_protocol(
         self, _: asyncio.AbstractEventLoop | None = None
@@ -85,8 +84,14 @@ class Server:
             await self.lifespan.startup()
 
     async def shutdown(self):
+        self.logger.info("Server is closed")
         if self.config.lifespan:
             await self.lifespan.shutdown()
+
+        await self.server.wait_closed()
+
+    def stop(self):
+        self.stop_event.set()
 
     @property
     def pid(self):
