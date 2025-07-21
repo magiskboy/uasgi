@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import os
 import socket
 from typing import TYPE_CHECKING, Optional
 
@@ -55,19 +54,23 @@ class Config:
 
         return self.ssl
 
+    def create_socket(self):
+        host = self.host or "127.0.0.1"
+        port = self.port or 5000
+        sock = socket.create_server(
+            address=(host, port),
+            family=socket.AF_INET,
+            backlog=self.backlog or 4096,
+            reuse_port=True,
+        )
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        sock.setsockopt(socket.SOL_TCP, socket.TCP_NODELAY, 1)
+
+        return sock
+
     def setup_socket(self):
         if self.sock is None:
-            host = self.host or "127.0.0.1"
-            port = self.port or 5000
-            self.sock = socket.create_server(
-                address=(host, port),
-                family=socket.AF_INET,
-                backlog=self.backlog or 4096,
-                reuse_port=True,
-            )
-
-        if self.workers:
-            os.set_inheritable(self.sock.fileno(), True)
+            self.sock = self.create_socket()
 
         return self.sock
 

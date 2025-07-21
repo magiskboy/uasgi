@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import os
-import multiprocessing as mp
 import sys
+import signal
+import asyncio
+import multiprocessing as mp
 from typing import TYPE_CHECKING, Optional
 
 import uvloop
@@ -69,11 +71,17 @@ class Worker:
             config=self.config,
         )
 
+        def handle_sighup(*_):
+            server.reload()
+
+        signal.signal(signal.SIGHUP, handle_sighup)
+
         # when user presses Ctrl-C, SIGINT will be sent to all processes
         # includes children so we should catch them in children at here
         try:
             logger.info(f"Worker {self.pid} is running")
-            server.run()
+            loop = asyncio.get_event_loop()
+            loop.run_until_complete(server.main())
         except KeyboardInterrupt:
             server.stop()
         finally:
@@ -84,11 +92,10 @@ class Worker:
         if self.worker:
             return self.worker.pid
 
-        return "Unknown"
-
     def reload(self):
-        self.logger.info("Worker is reloading")
-        self.run()
+        if self.pid:
+            self.logger.info("Worker is reloading")
+            os.kill(self.pid, signal.SIGHUP)
 
     def join(self):
         if self.worker and self.worker.is_alive():

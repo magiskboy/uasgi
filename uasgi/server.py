@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import os
-import socket
 import asyncio
 from typing import List, Set, TYPE_CHECKING
 
@@ -40,32 +39,40 @@ class Server:
         )
         self.lifespan = Lifespan(self.app)
         self.state = ServerState(self.lifespan)
+        self._stop_event = asyncio.Event()
+        self._reload_event = asyncio.Event()
 
     def run(self):
         try:
-            asyncio.run(self.main(self.config.socket))
+            asyncio.run(self.main())
         except KeyboardInterrupt:
             self.stop()
 
-    async def main(self, sock: socket.socket):
+    async def main(self):
         """Entrypoint where server starts and runs"""
         loop = asyncio.get_running_loop()
 
-        self.server = await loop.create_server(
-            protocol_factory=self.create_protocol,
-            sock=sock,
-            ssl=self.config.get_ssl(),
-            start_serving=False,
-        )
+        while not self._stop_event.is_set():
+            self._reload_event.clear()
 
-        await self.startup()
+            self.server = await loop.create_server(
+                protocol_factory=self.create_protocol,
+                sock=self.config.socket,
+                ssl=self.config.get_ssl(),
+                start_serving=False,
+            )
 
-        try:
-            await self.server.serve_forever()
-        except asyncio.CancelledError:
-            ...
-        finally:
-            await self.shutdown()
+            await self.startup()
+
+            await self.server.start_serving()
+
+            try:
+                await self._reload_event.wait()
+                self.config.sock = self.config.create_socket()
+            except KeyboardInterrupt:
+                break
+            finally:
+                await self.shutdown()
 
     def create_protocol(
         self, loop: asyncio.AbstractEventLoop | None = None
@@ -89,8 +96,9 @@ class Server:
         if self.config.lifespan:
             await self.lifespan.shutdown()
 
-        await self.server.wait_closed()
-
     def stop(self):
         self.logger.debug("Server is stopping")
-        self.server.close()
+        self._stop_event.set()
+
+    def reload(self):
+        self._reload_event.set()
