@@ -2,9 +2,10 @@ from __future__ import annotations
 
 import os
 import asyncio
-from typing import List, Set, TYPE_CHECKING
+import sys
+from typing import List, Set, TYPE_CHECKING, Union
 
-from .utils import create_logger
+from .utils import create_logger, load_app
 from .protocol import H11Protocol
 from .lifespan import Lifespan
 
@@ -26,19 +27,32 @@ class ServerState:
 class Server:
     def __init__(
         self,
-        app: "ASGIHandler",
+        app: Union["ASGIHandler", str],
         config: "Config",
     ):
         self.workers: List["Worker"] = []
         self.config = config
-        self.app = app
+        self.old_app = None
+        self._initialized_modules = set()
+
+        if isinstance(app, str):
+            for key in sys.modules.keys():
+                self._initialized_modules.add(key)
+
+            self.app = load_app(app)
+            self.app_str = app
+        else:
+            self.app = app
+            self.app_str = None
+
+        self.lifespan = Lifespan(self.app)
+        self.state = ServerState(self.lifespan)
+
         self.server: asyncio.Server
         self.logger = create_logger(__name__, config.log_level, config.log_fmt)
         self.access_logger = create_logger(
             "uasgi.access", "INFO", config.access_log_fmt
         )
-        self.lifespan = Lifespan(self.app)
-        self.state = ServerState(self.lifespan)
         self._stop_event = asyncio.Event()
         self._reload_event = asyncio.Event()
 
@@ -73,6 +87,18 @@ class Server:
                 break
             finally:
                 await self.shutdown()
+                self.server.close()
+                await self.server.wait_closed()
+
+            if self.app_str:
+                keys = set(sys.modules.keys()).difference(
+                    self._initialized_modules
+                )
+                for key in keys:
+                    sys.modules.pop(key)
+                self.app = load_app(self.app_str)
+            self.lifespan = Lifespan(self.app)
+            self.state.lifespan = self.lifespan
 
     def create_protocol(
         self, loop: asyncio.AbstractEventLoop | None = None

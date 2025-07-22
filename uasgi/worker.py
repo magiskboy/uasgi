@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING, Optional
 import uvloop
 
 from .server import Server
-from .utils import create_logger, load_app
+from .utils import create_logger
 
 
 if TYPE_CHECKING:
@@ -65,9 +65,8 @@ class Worker:
             __name__, self.config.log_level, self.config.log_fmt
         )
 
-        app = load_app(self.app)
         server = Server(
-            app=app,
+            app=self.app,
             config=self.config,
         )
 
