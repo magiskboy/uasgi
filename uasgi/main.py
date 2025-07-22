@@ -1,17 +1,15 @@
 from __future__ import annotations
 
 import sys
-import threading
-from typing import TYPE_CHECKING, Callable, Optional, cast
+from typing import TYPE_CHECKING, Callable, Optional
 
 import uvloop
 
-from .server import Server
+from uasgi.worker import Worker
+
 from .utils import LOG_LEVEL
 from .config import Config
-from .utils import load_app
 from .arbiter import Arbiter
-from .reloader import Reloader
 
 
 if TYPE_CHECKING:
@@ -36,6 +34,7 @@ def run(
     uvloop.install()
 
     config = Config(
+        app,
         host=host,
         port=port,
         backlog=backlog,
@@ -47,30 +46,18 @@ def run(
         lifespan=lifespan,
         access_log_fmt=access_log_fmt,
         log_fmt=log_fmt,
+        reload=reload,
     )
     config.setup_socket()
-    config.workers = config.workers or 1
 
     sys.stdout.write(str(config))
 
-    if reload:
-        Reloader(
-            app=app,  # type: ignore
+    if config.workers == 1:
+        return Worker(
             config=config,
-            stop_event=threading.Event(),
-        ).main()
-        return
-
-    if config.workers == 1 and not reload:
-        loaded_app = load_app(app)
-        Server(
-            app=loaded_app,
-            config=config,
-        ).run()
-        return
+        ).run(blocking=True)
 
     Arbiter(
-        app=cast(Callable[[], "ASGIHandler"] | str, app),
         config=config,
     ).main()
 

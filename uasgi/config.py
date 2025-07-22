@@ -1,47 +1,51 @@
 from __future__ import annotations
 
 import socket
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING, Optional, Callable
 
 from .utils import DEFAULT_LOG_FMT
 
 
 if TYPE_CHECKING:
+    from ssl import SSLContext
     from .utils import LOG_LEVEL
+    from .uhttp import ASGIHandler
 
 
 class Config:
     def __init__(
         self,
-        app=None,
-        host=None,
-        port=None,
-        sock=None,
-        backlog=None,
-        workers=None,
-        ssl_cert_file=None,
-        ssl_key_file=None,
-        ssl=None,
-        log_level: "LOG_LEVEL" = "INFO",
+        app: str | Callable[[], "ASGIHandler"] | "ASGIHandler",
+        host: Optional[str] = None,
+        port: Optional[int] = None,
+        sock: Optional["socket.socket"] = None,
+        backlog: Optional[int] = None,
+        workers: Optional[int] = None,
+        ssl_cert_file: Optional[str] = None,
+        ssl_key_file: Optional[str] = None,
+        ssl: Optional["SSLContext"] = None,
+        log_level: Optional["LOG_LEVEL"] = None,
         lifespan: bool = False,
         access_log: bool = True,
         log_fmt: Optional[str] = None,
         access_log_fmt: Optional[str] = None,
+        reload: Optional[bool] = False,
     ):
         self.app = app
-        self.host = host
-        self.port = port
-        self.sock: Optional[socket.socket] = sock
-        self.backlog = backlog
-        self.workers = workers
+        self.host = host or "127.0.0.1"
+        self.port = port or 5000
+        self.socket: Optional["socket.socket"] = sock
+        self.backlog = backlog or 4096
+        self.workers = workers or 1
         self.ssl = ssl
         self.ssl_cert_file = ssl_cert_file
         self.ssl_key_file = ssl_key_file
-        self.log_level: LOG_LEVEL = log_level
+        self.log_level: "LOG_LEVEL" = log_level or "INFO"
         self.lifespan = lifespan
         self.access_log = access_log
-        self.log_fmt = log_fmt
-        self.access_log_fmt = access_log_fmt
+        self.log_fmt = log_fmt or DEFAULT_LOG_FMT
+        self.access_log_fmt = access_log_fmt or DEFAULT_LOG_FMT
+        self.reload = reload or False
 
     def get_ssl(self):
         from .utils import create_ssl_context
@@ -57,12 +61,12 @@ class Config:
         return self.ssl
 
     def create_socket(self):
-        host = self.host or "127.0.0.1"
-        port = self.port or 5000
+        host = self.host
+        port = self.port
         sock = socket.create_server(
             address=(host, port),
             family=socket.AF_INET,
-            backlog=self.backlog or 4096,
+            backlog=self.backlog,
             reuse_port=True,
         )
 
@@ -75,16 +79,8 @@ class Config:
         return sock
 
     def setup_socket(self):
-        if not self.sock:
-            self.sock = self.create_socket()
-
-    @property
-    def socket(self) -> socket.socket:  # ty: ignore[unresolved-attribute]
-        if self.sock:
-            return self.sock
-
-        self.sock = self.create_socket()
-        return self.sock
+        if not self.socket:
+            self.socket = self.create_socket()
 
     def __str__(self) -> str:
         output = ""
@@ -101,9 +97,10 @@ class Config:
         entries = {
             "Host": self.host,
             "Port": self.port,
-            "Socket": self.sock,
+            "Socket": self.socket,
             "Backlog": self.backlog,
             "Workers": self.workers,
+            "Auto reloading": self.reload,
             "SSL Enabled": self.ssl is not None,
             "SSL Cert File": self.ssl_cert_file,
             "SSL Key File": self.ssl_key_file,

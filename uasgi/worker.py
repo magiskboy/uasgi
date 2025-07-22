@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 import sys
 import signal
+import threading
 import multiprocessing as mp
 from typing import TYPE_CHECKING, Optional
 
@@ -10,6 +11,7 @@ import uvloop
 
 from .server import Server
 from .utils import create_logger, load_app
+from .reloader import Reloader
 
 
 if TYPE_CHECKING:
@@ -19,15 +21,13 @@ uvloop.install()
 
 
 class Worker:
-    def __init__(self, app, config: "Config", name: str):
-        self.app = app
+    def __init__(self, config: "Config"):
+        self.app = config.app
         self.worker = None
         self.config = config
         self.logger = create_logger(
             __name__, self.config.log_level, self.config.log_fmt
         )
-
-        self.name = name
         self.server: Optional[Server] = None
         (self._read_stdout_fd, self._write_stdout_fd) = os.pipe()
         (self._read_stderr_fd, self._write_stderr_fd) = os.pipe()
@@ -40,17 +40,42 @@ class Worker:
     def stderr_fd(self):
         return self._read_stderr_fd
 
-    def run(self):
+    def run(self, blocking=False):
+        if self.config.workers > 1 and self.config.reload:
+            raise RuntimeError(
+                "Number of workers must be 1 in auto reloading mode"
+            )
+
+        if not isinstance(self.app, str) and self.config.reload:
+            raise RuntimeError(
+                "app must be str or factory function in auto reloading mode"
+            )
+
         self.worker = mp.Process(
             target=self.main,
-            name=self.name,
             daemon=False,
             args=(
                 self._write_stdout_fd.is_integer(),
                 self._write_stderr_fd.is_integer(),
             ),
         )
+
         self.worker.start()
+
+        if blocking:
+            if self.config.reload:
+                reloader = Reloader(self, self.config)
+                reloader.main()
+
+            else:
+                stop_event = threading.Event()
+                try:
+                    stop_event.wait()
+                except KeyboardInterrupt:
+                    self.worker.join(timeout=5)
+                    return 1
+
+        return 0
 
     def main(self, stdout_writer, stderr_writer):
         """Entrypoint where child processes start and run"""

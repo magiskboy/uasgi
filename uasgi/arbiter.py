@@ -6,7 +6,7 @@ import sys
 import threading
 import time
 import multiprocessing as mp
-from typing import TYPE_CHECKING, Callable, List
+from typing import TYPE_CHECKING, List
 
 from .utils import create_logger
 from .worker import Worker
@@ -14,21 +14,19 @@ from .worker import Worker
 
 if TYPE_CHECKING:
     from .config import Config
-    from .uhttp import ASGIHandler
 
 
 class Arbiter:
     def __init__(
         self,
-        app: str | Callable[[], "ASGIHandler"],
         config: "Config",
     ):
-        if asyncio.iscoroutinefunction(app):
+        if asyncio.iscoroutinefunction(config.app):
             raise RuntimeError(
                 "You must use str or factory function in worker mode"
             )
 
-        self.app = app
+        self.app = config.app
         self.config = config
         self.logger = create_logger(__name__, config.log_level, config.log_fmt)
         self.stop_event = mp.Event()
@@ -61,8 +59,8 @@ class Arbiter:
 
         self.logger.debug("Arbitter is running")
 
-        for i in range(self.config.workers):
-            worker = Worker(self.app, self.config, f"worker-{i}")
+        for _ in range(self.config.workers):
+            worker = Worker(self.config)
             self.workers.append(worker)
 
         threading.Thread(target=self.sync_stdio, daemon=True).start()

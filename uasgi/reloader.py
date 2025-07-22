@@ -1,6 +1,4 @@
-import asyncio
 import os
-import sys
 import time
 import threading
 from typing import TYPE_CHECKING
@@ -20,11 +18,11 @@ from watchdog.events import (
 from watchdog.observers import Observer
 
 from .utils import create_logger
-from .worker import Worker
 
 
 if TYPE_CHECKING:
     from .config import Config
+    from .worker import Worker
 
 
 class Reloader(FileSystemEventHandler):
@@ -43,20 +41,15 @@ class Reloader(FileSystemEventHandler):
 
     def __init__(
         self,
-        app: str,
+        worker: "Worker",
         config: "Config",
-        stop_event: threading.Event,
     ):
-        if config.workers and config.workers > 1:
-            raise RuntimeError(
-                "Number of workers must equals to 1 in reloader mode."
-            )
-        self.app = app
+        self.worker = worker
         self.config = config
 
         self.logger = create_logger(__name__, config.log_level, config.log_fmt)
         self.changed_event = threading.Event()
-        self.stop_event = stop_event
+        self.stop_event = threading.Event()
         self.observer = Observer()
         self.reload_last_time = time.time()
 
@@ -91,27 +84,6 @@ class Reloader(FileSystemEventHandler):
         self.worker.reload()
         self.reload_last_time = time.time()
 
-    def sync_stdio(self):
-        loop = asyncio.new_event_loop()
-
-        def handle_for(out_fd, in_fd):
-            os.sendfile(out_fd, in_fd, 0, 1024)
-
-        loop.add_reader(
-            self.worker.stdout_fd,
-            handle_for,
-            sys.stdout.fileno(),
-            self.worker.stdout_fd,
-        )
-        loop.add_reader(
-            self.worker.stderr_fd,
-            handle_for,
-            sys.stderr.fileno(),
-            self.worker.stderr_fd,
-        )
-
-        loop.run_forever()
-
     def main(self):
         self.logger.debug("Reloader is running")
         cwd = os.getcwd()
@@ -122,16 +94,6 @@ class Reloader(FileSystemEventHandler):
             event_filter=Reloader.CHANGED_EVENT_TYPES,
         )
         self.observer.start()
-
-        self.worker = Worker(
-            app=self.app,
-            config=self.config,
-            name="dev",
-        )
-
-        threading.Thread(target=self.sync_stdio, daemon=True).start()
-
-        self.worker.run()
 
         while not self.stop_event.is_set():
             try:
