@@ -29,7 +29,7 @@ def run(
     log_level: LOG_LEVEL = "INFO",
     access_log: bool = True,
     lifespan: bool = True,
-    reloader: Optional[bool] = False,
+    reload: Optional[bool] = False,
     log_fmt: Optional[str] = None,
     access_log_fmt: Optional[str] = None,
 ):
@@ -53,7 +53,7 @@ def run(
 
     sys.stdout.write(str(config))
 
-    if reloader:
+    if reload:
         Reloader(
             app=app,  # type: ignore
             config=config,
@@ -61,7 +61,7 @@ def run(
         ).main()
         return
 
-    if config.workers == 1 and not reloader:
+    if config.workers == 1 and not reload:
         loaded_app = load_app(app)
         Server(
             app=loaded_app,

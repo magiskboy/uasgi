@@ -77,7 +77,7 @@ cli = click.Group(name="uasgi", help="A High-Performance ASGI Web Server")
     help="Enable/disable ASGI lifespan protocol.",
 )
 @click.option(
-    "--reloader/--no-reloader",
+    "--reload/--no-reload",
     is_flag=True,
     default=False,
     show_default=True,
@@ -94,18 +94,21 @@ def run(
     log_level: LOG_LEVEL,
     access_log: bool,
     lifespan: bool,
-    reloader: Optional[bool],
+    reload: Optional[bool],
 ):
-    _run(
-        app=app,
-        host=host,
-        port=port,
-        backlog=backlog,
-        workers=workers,
-        ssl_key_file=ssl_key_file,
-        ssl_cert_file=ssl_cert_file,
-        log_level=log_level,
-        access_log=access_log,
-        lifespan=lifespan,
-        reloader=reloader,
-    )
+    try:
+        _run(
+            app=app,
+            host=host,
+            port=port,
+            backlog=backlog,
+            workers=workers,
+            ssl_key_file=ssl_key_file,
+            ssl_cert_file=ssl_cert_file,
+            log_level=log_level,
+            access_log=access_log,
+            lifespan=lifespan,
+            reload=reload,
+        )
+    except RuntimeError as e:
+        click.echo(str(e), err=True)

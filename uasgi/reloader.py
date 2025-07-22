@@ -64,7 +64,8 @@ class Reloader(FileSystemEventHandler):
 
     def on_any_event(self, event: FileSystemEvent) -> None:
         if self.should_reload(event):
-            self.logger.info(event)
+            filename = event.src_path
+            self.logger.info(f"{filename} changed")
             self.changed_event.set()
 
         return super().on_any_event(event)
@@ -90,7 +91,7 @@ class Reloader(FileSystemEventHandler):
         self.worker.reload()
         self.reload_last_time = time.time()
 
-    def watch_log(self):
+    def sync_stdio(self):
         loop = asyncio.new_event_loop()
 
         def handle_for(out_fd, in_fd):
@@ -120,6 +121,7 @@ class Reloader(FileSystemEventHandler):
             recursive=True,
             event_filter=Reloader.CHANGED_EVENT_TYPES,
         )
+        self.observer.start()
 
         self.worker = Worker(
             app=self.app,
@@ -127,7 +129,7 @@ class Reloader(FileSystemEventHandler):
             name="dev",
         )
 
-        threading.Thread(target=self.watch_log, daemon=True).start()
+        threading.Thread(target=self.sync_stdio, daemon=True).start()
 
         self.worker.run()
 

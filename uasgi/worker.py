@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 import os
-import multiprocessing as mp
 import sys
+import signal
+import multiprocessing as mp
 from typing import TYPE_CHECKING, Optional
 
 import uvloop
@@ -84,11 +85,12 @@ class Worker:
         if self.worker:
             return self.worker.pid
 
-        return "Unknown"
-
     def reload(self):
-        self.logger.info("Worker is reloading")
-        self.run()
+        if self.pid:
+            self.logger.info("Worker is reloading")
+            os.kill(self.pid, signal.SIGINT)
+            self.join()
+            self.run()
 
     def join(self):
         if self.worker and self.worker.is_alive():

@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import os
 import socket
 from typing import TYPE_CHECKING, Optional
 
@@ -65,9 +64,6 @@ class Config:
                 backlog=self.backlog or 4096,
                 reuse_port=True,
             )
-
-        if self.workers:
-            os.set_inheritable(self.sock.fileno(), True)
 
         return self.sock
 

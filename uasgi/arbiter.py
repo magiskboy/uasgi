@@ -34,7 +34,7 @@ class Arbiter:
         self.stop_event = mp.Event()
         self.workers: List[Worker] = []
 
-    def watch_log(self):
+    def sync_stdio(self):
         def handle_for(out_fd, in_fd):
             os.sendfile(out_fd, in_fd, 0, 1024)
 
@@ -65,7 +65,7 @@ class Arbiter:
             worker = Worker(self.app, self.config, f"worker-{i}")
             self.workers.append(worker)
 
-        threading.Thread(target=self.watch_log, daemon=True).start()
+        threading.Thread(target=self.sync_stdio, daemon=True).start()
 
         for worker in self.workers:
             worker.run()
