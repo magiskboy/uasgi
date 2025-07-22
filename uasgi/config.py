@@ -13,6 +13,7 @@ if TYPE_CHECKING:
 class Config:
     def __init__(
         self,
+        app=None,
         host=None,
         port=None,
         sock=None,
@@ -27,6 +28,7 @@ class Config:
         log_fmt: Optional[str] = None,
         access_log_fmt: Optional[str] = None,
     ):
+        self.app = app
         self.host = host
         self.port = port
         self.sock: Optional[socket.socket] = sock
@@ -54,25 +56,35 @@ class Config:
 
         return self.ssl
 
-    def setup_socket(self):
-        if self.sock is None:
-            host = self.host or "127.0.0.1"
-            port = self.port or 5000
-            self.sock = socket.create_server(
-                address=(host, port),
-                family=socket.AF_INET,
-                backlog=self.backlog or 4096,
-                reuse_port=True,
-            )
+    def create_socket(self):
+        host = self.host or "127.0.0.1"
+        port = self.port or 5000
+        sock = socket.create_server(
+            address=(host, port),
+            family=socket.AF_INET,
+            backlog=self.backlog or 4096,
+            reuse_port=True,
+        )
 
-        return self.sock
+        sock.setsockopt(socket.SOL_TCP, socket.TCP_NODELAY, 1)
+        sock.setblocking(False)
+
+        if self.workers:
+            sock.set_inheritable(True)
+
+        return sock
+
+    def setup_socket(self):
+        if not self.sock:
+            self.sock = self.create_socket()
 
     @property
     def socket(self) -> socket.socket:  # ty: ignore[unresolved-attribute]
         if self.sock:
             return self.sock
 
-        return self.setup_socket()
+        self.sock = self.create_socket()
+        return self.sock
 
     def __str__(self) -> str:
         output = ""
