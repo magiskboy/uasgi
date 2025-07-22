@@ -71,10 +71,10 @@ class Config:
         )
 
         sock.setsockopt(socket.SOL_TCP, socket.TCP_NODELAY, 1)
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         sock.setblocking(False)
 
-        if self.workers:
-            sock.set_inheritable(True)
+        sock.set_inheritable(True)
 
         return sock
 

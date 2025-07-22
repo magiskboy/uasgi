@@ -33,6 +33,13 @@ class ASGIScope(TypedDict):
 ASGIHandler = Callable[[ASGIScope, Callable, Callable], Coroutine]
 
 
+NO_BODY_METHODS = {
+    b"GET",
+    b"HEAD",
+    b"OPTIONS",
+}
+
+
 class HTTPScope(ASGIScope):
     type: Literal["http"]
     http_version: str
@@ -130,7 +137,7 @@ class HttpScopeRunner:
                     self.access_logger.info(log)
 
     async def receive(self):
-        if self.scope["method"] in [b"GET"]:
+        if self.scope["method"] in NO_BODY_METHODS:
             event = {
                 "type": "http.request",
                 "body": None,
