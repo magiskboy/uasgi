@@ -41,14 +41,15 @@ class Server:
         self.lifespan = Lifespan(self.app)
         self.state = ServerState(self.lifespan)
 
-    def run(self):
-        try:
-            asyncio.run(self.main(self.config.socket))
-        except KeyboardInterrupt:
-            self.stop()
-
-    async def main(self, sock: socket.socket):
+    def main(self):
         """Entrypoint where server starts and runs"""
+
+        if self.config.socket is None:
+            raise RuntimeError("Socket must be binded before starting server")
+
+        asyncio.run(self.run(self.config.socket))
+
+    async def run(self, sock: socket.socket):
         loop = asyncio.get_running_loop()
 
         self.server = await loop.create_server(

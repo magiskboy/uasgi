@@ -77,13 +77,17 @@ class Worker:
 
         return 0
 
-    def main(self, stdout_writer, stderr_writer):
-        """Entrypoint where child processes start and run"""
+    def _sync_to_stdio(self, stdout_fd: int, stderr_fd: int):
         # https://man7.org/linux/man-pages/man2/dup.2.html
-        os.dup2(stdout_writer, sys.stdout.fileno())
-        os.dup2(stderr_writer, sys.stderr.fileno())
+        os.dup2(stdout_fd, sys.stdout.fileno())
+        os.dup2(stderr_fd, sys.stderr.fileno())
         sys.stdout = sys.__stdout__ = open(1, "w", buffering=1)
         sys.stderr = sys.__stderr__ = open(2, "w", buffering=1)
+
+    def main(self, stdout_fd: int, stderr_fd: int):
+        """Entrypoint where child processes start and run"""
+
+        self._sync_to_stdio(stdout_fd, stderr_fd)
 
         logger = create_logger(
             __name__, self.config.log_level, self.config.log_fmt
@@ -95,11 +99,13 @@ class Worker:
             config=self.config,
         )
 
+        logger.info(f"Worker {self.pid} is running")
+
         # when user presses Ctrl-C, SIGINT will be sent to all processes
-        # includes children so we should catch them in children at here
+        # (what belongs to the process group) includes children so we
+        # should catch them in children at here
         try:
-            logger.info(f"Worker {self.pid} is running")
-            server.run()
+            server.main()
         except KeyboardInterrupt:
             server.stop()
         finally:

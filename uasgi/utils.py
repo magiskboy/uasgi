@@ -2,10 +2,20 @@ from __future__ import annotations
 
 import sys
 import ssl
-import asyncio
 import logging
-from typing import TYPE_CHECKING, Literal, Optional, cast
+import asyncio
+import threading
 import importlib
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Callable,
+    Dict,
+    Iterable,
+    Literal,
+    Optional,
+    cast,
+)
 
 
 if TYPE_CHECKING:
@@ -93,3 +103,27 @@ def load_app(app) -> "ASGIHandler":
         return cast("ASGIHandler", app())
 
     raise ImportError("Cannot load app")
+
+
+def to_thread(
+    func: Callable,
+    args: Optional[Iterable[Any]] = None,
+    kwargs: Optional[Dict] = None,
+    daemon=False,
+    start=True,
+    *targs,
+    **tkwargs,
+) -> threading.Thread:
+    thread = threading.Thread(
+        target=func,
+        args=args or (),
+        kwargs=kwargs,
+        daemon=daemon,
+        *targs,
+        **tkwargs,
+    )
+
+    if start:
+        thread.start()
+
+    return thread

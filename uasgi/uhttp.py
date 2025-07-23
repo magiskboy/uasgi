@@ -44,7 +44,7 @@ class HTTPScope(ASGIScope):
     type: Literal["http"]
     http_version: str
     method: bytes
-    scheme: Optional[Literal["https", "http", "ws", "wss", None]]
+    scheme: Optional[Literal["https", "http", None]]
     path: str
     raw_path: Optional[bytes]
     query_string: bytes

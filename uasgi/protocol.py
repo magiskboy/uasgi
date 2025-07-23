@@ -57,7 +57,7 @@ class H11Protocol(asyncio.Protocol):
         # request state
         self.url: bytes
         self.scope: "HTTPScope"
-        self.scheme: Optional[Literal["https", "http", "ws", "wss"]]
+        self.scheme: Optional[Literal["https", "http"]]
         self.headers: List[Tuple[bytes, bytes]]
         self.current_runner: Optional["HttpScopeRunner"] = None
 
