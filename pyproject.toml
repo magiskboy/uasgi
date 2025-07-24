@@ -1,9 +1,9 @@
 [project]
 name = "uasgi"
-version = "0.1.1b1"
+version = "0.2.0"
 description = "uASGI: A High-Performance ASGI Web Server"
 readme = "README.md"
-requires-python = ">=3.13"
+requires-python = ">=3.10"
 dependencies = [
     "click>=8.2.1",
     "httptools>=0.6.4",
