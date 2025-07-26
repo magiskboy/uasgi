@@ -3,7 +3,7 @@ from __future__ import annotations
 import os
 import socket
 import asyncio
-from typing import List, Set, TYPE_CHECKING
+from typing import Set, TYPE_CHECKING
 
 from .utils import create_logger
 from .protocol import H11Protocol
@@ -11,7 +11,6 @@ from .lifespan import Lifespan
 
 
 if TYPE_CHECKING:
-    from .worker import Worker
     from .uhttp import ASGIHandler
     from .config import Config
 
@@ -30,7 +29,6 @@ class Server:
         app: "ASGIHandler",
         config: "Config",
     ):
-        self.workers: List["Worker"] = []
         self.config = config
         self.app = app
         self.server: asyncio.Server
