@@ -7,13 +7,13 @@ import uvloop
 
 from uasgi.worker import Worker
 
-from .utils import LOG_LEVEL
 from .config import Config
 from .arbiter import Arbiter
 
 
 if TYPE_CHECKING:
     from .uhttp import ASGIHandler
+    from .utils import LOG_LEVEL
 
 
 def run(

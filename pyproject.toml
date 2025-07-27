@@ -6,6 +6,7 @@ readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
     "click>=8.2.1",
+    "gunicorn>=23.0.0",
     "httptools>=0.6.4",
     "uvloop>=0.21.0",
     "watchdog>=6.0.0",
