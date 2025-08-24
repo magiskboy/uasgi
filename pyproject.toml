@@ -10,6 +10,7 @@ dependencies = [
     "httptools>=0.6.4",
     "uvloop>=0.21.0",
     "watchdog>=6.0.0",
+    "h2>=4.2.0",
 ]
 classifiers = [
     "Programming Language :: Python :: 3",

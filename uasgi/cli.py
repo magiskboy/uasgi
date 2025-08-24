@@ -3,6 +3,8 @@ from __future__ import annotations
 from typing import Optional
 import click
 
+from uasgi.config import Protocol
+
 from .main import run as _run
 from .utils import LOG_LEVEL
 
@@ -83,6 +85,12 @@ cli = click.Group(name="uasgi", help="A High-Performance ASGI Web Server")
     show_default=True,
     help="Enable/disable auto reloader.",
 )
+@click.option(
+    "--protocol",
+    default="h11",
+    show_default=True,
+    help="HTTP protocol",
+)
 def run(
     app: str,
     host: str,
@@ -95,6 +103,7 @@ def run(
     access_log: bool,
     lifespan: bool,
     reload: Optional[bool],
+    protocol: Optional[Protocol],
 ):
     try:
         _run(
@@ -109,6 +118,7 @@ def run(
             access_log=access_log,
             lifespan=lifespan,
             reload=reload,
+            protocol=protocol,
         )
     except RuntimeError as e:
         click.echo(str(e), err=True)

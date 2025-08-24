@@ -7,7 +7,7 @@ import uvloop
 
 from uasgi.worker import Worker
 
-from .config import Config
+from .config import Config, Protocol
 from .arbiter import Arbiter
 
 
@@ -30,6 +30,7 @@ def run(
     reload: Optional[bool] = False,
     log_fmt: Optional[str] = None,
     access_log_fmt: Optional[str] = None,
+    protocol: Optional[Protocol] = "h11",
 ):
     uvloop.install()
 
@@ -47,6 +48,7 @@ def run(
         access_log_fmt=access_log_fmt,
         log_fmt=log_fmt,
         reload=reload,
+        protocol=protocol,
     )
     config.setup_socket()
 

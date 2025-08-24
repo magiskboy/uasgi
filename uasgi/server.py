@@ -7,6 +7,7 @@ from typing import Set, TYPE_CHECKING
 
 from .utils import create_logger
 from .protocol import H11Protocol
+from .h2_protocol import H2Protocol
 from .lifespan import Lifespan
 
 
@@ -69,14 +70,23 @@ class Server:
     def create_protocol(
         self, loop: asyncio.AbstractEventLoop | None = None
     ) -> asyncio.Protocol:
-        return H11Protocol(
-            app=self.app,
-            server_state=self.state,
-            logger=self.logger,
-            access_logger=self.access_logger,
-            config=self.config,
-            loop=loop,
-        )
+        if self.config.protocol == "h11":
+            return H11Protocol(
+                app=self.app,
+                server_state=self.state,
+                logger=self.logger,
+                access_logger=self.access_logger,
+                config=self.config,
+                loop=loop,
+            )
+
+        if self.config.protocol == "h2":
+            return H2Protocol(
+                app=self.app,
+                server_state=self.state,
+            )
+
+        raise RuntimeError(f"{self.config.protocol} is not support")
 
     async def startup(self):
         self.logger.debug("Server is starting up")

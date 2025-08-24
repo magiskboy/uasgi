@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import socket
-from typing import TYPE_CHECKING, Optional, Callable
+from typing import TYPE_CHECKING, Literal, Optional, Callable
 
 from .utils import DEFAULT_LOG_FMT
 
@@ -10,6 +10,9 @@ if TYPE_CHECKING:
     from ssl import SSLContext
     from .utils import LOG_LEVEL
     from .uhttp import ASGIHandler
+
+
+Protocol = Literal["h11", "h2"]
 
 
 class Config:
@@ -30,6 +33,7 @@ class Config:
         log_fmt: Optional[str] = None,
         access_log_fmt: Optional[str] = None,
         reload: Optional[bool] = False,
+        protocol: Optional[Protocol] = "h11",
     ):
         self.app = app
         self.host = host or "127.0.0.1"
@@ -46,6 +50,7 @@ class Config:
         self.log_fmt = log_fmt or DEFAULT_LOG_FMT
         self.access_log_fmt = access_log_fmt or DEFAULT_LOG_FMT
         self.reload = reload or False
+        self.protocol = protocol
 
     def get_ssl(self):
         from .utils import create_ssl_context
@@ -55,7 +60,9 @@ class Config:
 
         if self.ssl_cert_file and self.ssl_key_file:
             self.ssl = create_ssl_context(
-                self.ssl_cert_file, self.ssl_key_file
+                self.ssl_cert_file,
+                self.ssl_key_file,
+                config=self,
             )
 
         return self.ssl

@@ -19,6 +19,7 @@ from typing import (
 
 
 if TYPE_CHECKING:
+    from uasgi.config import Config
     from .uhttp import ASGIHandler
 
 
@@ -26,7 +27,10 @@ LOG_LEVEL = Literal["DEBUG", "INFO", "WARNING", "ERROR"]
 
 
 def create_ssl_context(
-    certfile_path: str, keyfile_path: str, password=None
+    certfile_path: str,
+    keyfile_path: str,
+    config: "Config",
+    password=None,
 ) -> ssl.SSLContext:
     context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
 
@@ -45,6 +49,9 @@ def create_ssl_context(
     context.set_ciphers(
         "ECDHE+AESGCM:CHACHA20:DHE+AESGCM:!RC4:!aNULL:!eNULL:!LOW:!3DES:!MD5:!EXP:!PSK:!SRP:!DSS:!CAMELLIA:!SEED"
     )
+
+    if config.protocol == "h2":
+        context.set_alpn_protocols(["h2"])
 
     return context
 
